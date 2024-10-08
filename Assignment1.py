@@ -69,3 +69,30 @@ def plot_mat(mat, scaleIndividual=True, colorbar=False, prop=(9,16), gutters=2,
     if colorbar:
         pyplot.colorbar()
     pyplot.axis('off')
+
+
+# TODO: Complete the declarations
+# Task 1
+a = 10
+b = 2.5 * 10**23
+c = 2 + 3j
+d = np.exp(2j * np.pi / 3)
+# Task 2
+aVec = [3.14,15,9,26]
+bVec = np.arange(5,-5,-0.2)
+cVec = np.logspace(0, 1, 10) # co rozumiemy przez correct length?
+dVec = "Hello"
+print(cVec)
+# Task 3
+aMat = 2 * np.ones((9, 9))
+bMat = np.zeros((9, 9)) + np.diag([1, 2, 3, 4, 5, 4, 3, 2, 1])
+#print(bMat)
+cMat = np.arange(1, 101).reshape((10, 10), order='F') # F - fortean, reshaping column wise
+#print(cMat)
+dMat = np.zeros((3, 4)) + np.nan
+#print(dMat)
+eMat = np.array([[13,-1,5], [-22,10,-87]])
+#print(eMat)
+fMat = np.floor((np.random.rand(3, 3) * 7 - 3)) # *6 tworzy range [0:7] -3 przesuwa o 3 w lewo [-3:4] , floor zaokragla w dol wiec liczby wychodza -3:3
+# rand generuje [0, 1) , nizszy zakres wlacznie, wyzszy wylacznie
+print(fMat)
