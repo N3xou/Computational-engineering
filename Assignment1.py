@@ -70,6 +70,7 @@ def plot_mat(mat, scaleIndividual=True, colorbar=False, prop=(9,16), gutters=2,
         pyplot.colorbar()
     pyplot.axis('off')
 
+# PROBLEM 1
 
 # Task 1
 
@@ -141,3 +142,22 @@ def ismagic(A):
 
 assert not ismagic(np.array([[1,1], [2,2]]))
 assert ismagic(np.array([[2,7,6],[9,5,1],[4,3,8]]))
+
+# PROBLEM 2
+
+iris_url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data'
+# Use read_csv to load the data. Make sure you get 150 examples!
+iris_df =
+
+# Set the column names to
+# 'sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'target'
+iris_df.columns = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'target']
+
+# Print the first 10 entries
+iris_df.TODO
+
+# Show numerical summary of the data, using DataFrame.describe()
+iris_df.TODO
+
+# Plot the data using seaborn's pairplot
+sns.TODO
