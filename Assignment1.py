@@ -71,19 +71,23 @@ def plot_mat(mat, scaleIndividual=True, colorbar=False, prop=(9,16), gutters=2,
     pyplot.axis('off')
 
 
-# TODO: Complete the declarations
 # Task 1
+
 a = 10
 b = 2.5 * 10**23
 c = 2 + 3j
 d = np.exp(2j * np.pi / 3)
+
 # Task 2
+
 aVec = [3.14,15,9,26]
 bVec = np.arange(5,-5,-0.2)
 cVec = np.logspace(0, 1, 10) # co rozumiemy przez correct length?
 dVec = "Hello"
 print(cVec)
+
 # Task 3
+
 aMat = 2 * np.ones((9, 9))
 bMat = np.zeros((9, 9)) + np.diag([1, 2, 3, 4, 5, 4, 3, 2, 1])
 #print(bMat)
@@ -96,3 +100,44 @@ eMat = np.array([[13,-1,5], [-22,10,-87]])
 fMat = np.floor((np.random.rand(3, 3) * 7 - 3)) # *6 tworzy range [0:7] -3 przesuwa o 3 w lewo [-3:4] , floor zaokragla w dol wiec liczby wychodza -3:3
 # rand generuje [0, 1) , nizszy zakres wlacznie, wyzszy wylacznie
 print(fMat)
+
+# Task 4
+
+mulMat = np.outer(np.arange(1,11), np.arange(1,11))
+print(mulMat)
+
+# Task 5
+
+xVec = 1/(np.sqrt(2*np.pi*(2.5)**2)*np.exp(-cVec**2/(2*np.pi*(2.5)**2)))
+print(xVec)
+yVec = np.log10(1 / cVec)
+print(yVec)
+
+# Task 6
+
+# t = transpose, zamiana rzedu na kolumne w tym przypadku
+row = np.array([[0,1,2,3,4,5,6]])
+print(row)
+column = np.array([[0], [10], [20], [30], [40], [50], [60]])
+print(column)
+xMat = row @ column
+print(xMat)
+yMat = column @ row
+print(yMat)
+
+# Task 7
+
+def ismagic(A):
+    row_sum = np.sum(A[0,:])
+    if A.shape[0] != A.shape[1]:
+        return False
+    for i in range(A.shape[0]):
+        if np.sum(A[i,:]) != row_sum:
+            return False
+        elif np.sum(A[:,i]) != row_sum:
+            return False
+    return True
+
+
+assert not ismagic(np.array([[1,1], [2,2]]))
+assert ismagic(np.array([[2,7,6],[9,5,1],[4,3,8]]))
