@@ -147,17 +147,21 @@ assert ismagic(np.array([[2,7,6],[9,5,1],[4,3,8]]))
 
 iris_url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data'
 # Use read_csv to load the data. Make sure you get 150 examples!
-iris_df =
+iris_df = pd.read_csv(iris_url)
+
 
 # Set the column names to
 # 'sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'target'
 iris_df.columns = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'target']
 
 # Print the first 10 entries
-iris_df.TODO
+iris_df.head(10)
 
 # Show numerical summary of the data, using DataFrame.describe()
-iris_df.TODO
+iris_df.describe()
 
 # Plot the data using seaborn's pairplot
-sns.TODO
+sns.pairplot(iris_df)
+
+iris_df_long = iris_df.melt()
+iris_df_long.head()
