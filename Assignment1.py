@@ -163,5 +163,21 @@ iris_df.describe()
 # Plot the data using seaborn's pairplot
 sns.pairplot(iris_df)
 
-iris_df_long = iris_df.melt()
+#melt
+iris_df_long = pd.melt(iris_df,
+                       id_vars='target',
+                       value_vars='sepal_length',
+                       var_name='variable',
+                       value_name='value')
 iris_df_long.head()
+
+# plots
+
+# Hint: use a `catplot`
+sns.catplot(kind='box', data=iris_df, x='target', y='sepal_length', hue='target')
+
+# TODO: create two more plots, using a boxenplot and a swarmplot.
+
+sns.catplot(kind='boxen', data=iris_df, x='target', y='sepal_length', hue='target')
+sns.catplot(kind='swarm', data=iris_df, x='target', y='sepal_length', hue='target')
+#sns.catplot(...)
