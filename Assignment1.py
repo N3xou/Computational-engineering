@@ -180,4 +180,71 @@ sns.catplot(kind='box', data=iris_df, x='target', y='sepal_length', hue='target'
 
 sns.catplot(kind='boxen', data=iris_df, x='target', y='sepal_length', hue='target')
 sns.catplot(kind='swarm', data=iris_df, x='target', y='sepal_length', hue='target')
-#sns.catplot(...)
+
+unknown_df = pd.DataFrame(
+    [[1.5, 0.3, 'unknown'],
+     [4.5, 1.2, 'unknown'],
+     [5.1, 1.7, 'unknown'],
+     [5.5, 2.3, 'unknown']],
+     columns=['petal_length', 'petal_width', 'target'])
+
+sns.scatterplot(x='petal_length', y='petal_width', hue='target', data=iris_df)
+sns.scatterplot(x='petal_length', y='petal_width', color='gray', marker='v',
+                label='unknown', s=70, data=unknown_df)
+
+# PRoblem 3, KNN implementation
+
+from scipy import stats
+def KNN(train_X, train_Y, test_X, ks, verbose=False):
+    """
+    Compute predictions for various k
+    Args:
+        train_X: array of shape Ntrain x D
+        train_Y: array of shape Ntrain
+        test_X: array of shape Ntest x D
+        ks: list of integers
+    Returns:
+        preds: dict k: predictions for k
+    """
+    # Cats data to float32
+    train_X = train_X.astype(np.float32)
+    test_X = test_X.astype(np.float32)
+
+    # Alloc space for results
+    preds = {}
+
+    if verbose:
+        print("Computing distances... ", end='')
+    #
+    # TODO: fill in an efficient distance matrix computation
+    #
+    dists = np.sqrt(np.sum((test_X[:, None] - train_X) ** 2, axis=2))
+
+
+    if verbose:
+        print("Sorting... ", end='')
+
+    # TODO: findes closest trainig points
+    # Hint: use argsort
+    closest = dists.argsort(axis=1)
+    if verbose:
+        print("Computing predictions...", end='')
+
+    targets = train_Y[closest]
+
+    for k in ks:
+        k_closest = targets[:, :k]
+        most_common = stats.mode(k_closest,axis=1)
+        predictions = predictions.ravel()
+        preds[k] = predictions
+    if verbose:
+        print("Done")
+    return preds
+
+# Now classify the 4 unknown points
+iris_x = np.array(iris_df[['petal_length', 'petal_width']])
+iris_y = np.array(iris_df['target'])
+
+unknown_x = np.array(unknown_df[['petal_length', 'petal_width']])
+
+KNN(iris_x, iris_y, unknown_x, [1, 3, 5, 7], verbose=True)
