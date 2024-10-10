@@ -321,5 +321,65 @@ results_df = pd.DataFrame(results)
 plt.figure()
 sns.regplot(x='K', y='err_rate', data=results_df, order=2)
 
+# leave on out
+def leave_one_out_error(train_X, train_Y, ks):
+    preds_dict = {k: [] for k in ks}
+
+    for i in range(train_X.shape[0]):
+
+        train_X_loo = np.delete(train_X, i, axis=0)
+        train_Y_loo = np.delete(train_Y, i)
+        test_X = train_X[i].reshape(1, -1)
+        test_Y = train_Y[i]
+
+        preds = KNN(train_X_loo, train_Y_loo, test_X, ks)
+
+        for k in ks:
+            preds_dict[k].append(preds[k][0])
+
+    return err_rates(preds_dict, train_Y)
+
+
+def plot_error_rate_vs_k(train_X, train_Y):
+    ks = range(1, 20)  # Experiment with K values from 1 to 19
+    errors = leave_one_out_error(train_X, train_Y, ks)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(ks, list(errors.values()), marker='o')
+    plt.title("Leave-One-Out Error Rate vs K")
+    plt.xlabel("Number of Neighbors (K)")
+    plt.ylabel("Leave-One-Out Error Rate")
+    plt.grid(True)
+    plt.xticks(ks)
+    plt.show()
+
+def plot_error_rate_vs_training_size(train_X, train_Y, k=15, repetitions=100):
+    sizes = np.linspace(0.1, 1.0, 10)  # Training sizes from 10% to 100%
+    errors = []
+
+    for size in sizes:
+        size_errors = []
+        for _ in range(repetitions):
+            # Randomly sample the training set
+            idx = np.random.choice(range(train_X.shape[0]), size=int(size * train_X.shape[0]), replace=False)
+            sampled_train_X = train_X[idx]
+            sampled_train_Y = train_Y[idx]
+
+            # Calculate LOOCV error
+            error = leave_one_out_error(sampled_train_X, sampled_train_Y, [k])
+            size_errors.append(error[k])
+
+        errors.append(np.mean(size_errors))
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(sizes * 100, errors, marker='o')
+    plt.title(f"Leave-One-Out Error Rate vs Training Set Size (K={k})")
+    plt.xlabel("Training Set Size (%)")
+    plt.ylabel("Leave-One-Out Error Rate")
+    plt.grid(True)
+    plt.xticks(np.arange(10, 101, 10))
+    plt.show()
+
+
 
 # todo: KNN ? contouf ?
