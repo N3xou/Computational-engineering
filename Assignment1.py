@@ -282,4 +282,60 @@ def err_rates(preds, test_Y):
         # TODO: fill in error count computation
         ret[k] = np.sum(preds_k != test_Y) / len(test_Y)
     return ret
+
+#
+iris_x = np.array(iris_df[['sepal_length', 'sepal_width', 'petal_length', 'petal_width']])
+iris_y = np.array(iris_df['target'])
+
+ks = range(1, 30, 2)
+results = []
+
+for _rep in tqdm(range(1000)):
+    #TODO
+    # Use np.random.randint to get training indices
+    # The find all unselected indices to form a test set
+    train_idx = ...
+    test_idx = ...
+
+    #TODO: apply your kNN classifier to data subset
+    preds = KNN(...)
+    errs = err_rates(preds, iris_y[test_idx])
+
+    for k, errs_k in errs.items():
+        results.append({'K':k, 'err_rate': errs_k})
+
+# results_df will be a data_frame in long format
+results_df = pd.DataFrame(results)
+
+plt.figure()
+sns.regplot(...)
+
+# KNN testing
+
+iris_x = np.array(iris_df[['sepal_length', 'sepal_width', 'petal_length', 'petal_width']])
+iris_y = np.array(iris_df['target'])
+
+ks = range(1, 30, 2)
+results = []
+
+for _rep in tqdm(range(1000)):
+    #TODO
+    # Use np.random.randint to get training indices
+    # The find all unselected indices to form a test set
+    train_idx = np.random.randint(0, len(iris_x), len(iris_x))
+    test_idx = np.array([i for i in range(len(iris_x)) if i not in train_idx])
+
+    #TODO: apply your kNN classifier to data subset
+    preds = KNN(iris_x, iris_y, test_idx ,ks)
+    errs = err_rates(preds, iris_y[test_idx])
+
+    for k, errs_k in errs.items():
+        results.append({'K':k, 'err_rate': errs_k})
+
+# results_df will be a data_frame in long format
+results_df = pd.DataFrame(results)
+
+plt.figure()
+sns.regplot(results_df)
+
 # todo: KNN ? contouf ?
