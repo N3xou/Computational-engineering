@@ -253,3 +253,24 @@ iris_y = np.array(iris_df['target'])
 unknown_x = np.array(unknown_df[['petal_length', 'petal_width']])
 
 KNN(iris_x, iris_y, unknown_x, [1, 3, 5, 7], verbose=True)
+#########
+iris_x = np.array(iris_df[['petal_length', 'petal_width']])
+iris_y = np.array(iris_df['target'])
+
+#print(iris_x)
+# ? mesh_x, mesh_y = np.meshgrid(iris_x,iris_y)
+
+#use np.unique with suitable options to map the class names to numbers
+target_names, iris_y_ids = np.unique(iris_y, return_inverse=True)
+mesh_x, mesh_y = np.meshgrid(iris_x,iris_y_ids)
+#print(target_names)
+#print(iris_y_ids)
+mesh_data = np.hstack([mesh_x.reshape(-1, 1), mesh_y.reshape(-1, 1)])
+#print(mesh_data)
+preds = KNN(iris_x, iris_y_ids, mesh_data, [1, 3, 5, 7])
+for k, preds_k in preds.items():
+    plt.figure()
+    plt.title(f"Decision boundary for k={k}")
+    plt.contourf(mesh_x, mesh_y, preds_k.reshape(mesh_x.shape),alpha=0.5, c = 'iris_y_ids')
+    plt.scatter(iris_x[:, 0], iris_x[:, 1], c=iris_y_ids, edgecolor='k', cmap=plt.cm.RdYlBu)
+
