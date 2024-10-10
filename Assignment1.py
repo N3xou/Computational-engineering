@@ -274,3 +274,12 @@ for k, preds_k in preds.items():
     plt.contourf(mesh_x, mesh_y, preds_k.reshape(mesh_x.shape),alpha=0.5, c = 'iris_y_ids')
     plt.scatter(iris_x[:, 0], iris_x[:, 1], c=iris_y_ids, edgecolor='k', cmap=plt.cm.RdYlBu)
 
+#
+#TODO: write a function to compute error rates
+def err_rates(preds, test_Y):
+    ret = {}
+    for k, preds_k in  preds.items():
+        # TODO: fill in error count computation
+        ret[k] = np.sum(preds_k != test_Y) / len(test_Y)
+    return ret
+# todo: KNN ? contouf ?
