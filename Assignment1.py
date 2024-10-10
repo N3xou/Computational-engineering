@@ -234,9 +234,14 @@ def KNN(train_X, train_Y, test_X, ks, verbose=False):
 
     for k in ks:
         k_closest = targets[:, :k]
-        most_common = stats.mode(k_closest,axis=1)
-        predictions = predictions.ravel()
-        preds[k] = predictions
+        predictions = []
+        # print(closest)
+        for labels in k_closest:
+            unique_labels, counts = np.unique(labels, return_counts=True)
+            most_common_label = unique_labels[np.argmax(counts)]
+            predictions.append(most_common_label)
+
+        preds[k] = np.array(predictions)
     if verbose:
         print("Done")
     return preds
