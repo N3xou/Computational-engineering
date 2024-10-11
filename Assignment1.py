@@ -325,7 +325,7 @@ sns.regplot(x='K', y='err_rate', data=results_df, order=2)
 def leave_one_out_error(train_X, train_Y, ks):
     preds_dict = {k: [] for k in ks}
 
-    for i in range(train_X.shape[0]):
+    for i in range(len(train_X)):
 
         train_X_loo = np.delete(train_X, i, axis=0)
         train_Y_loo = np.delete(train_Y, i)
@@ -354,14 +354,14 @@ def plot_error_rate_vs_k(train_X, train_Y):
     plt.show()
 
 def plot_error_rate_vs_training_size(train_X, train_Y, k=15, repetitions=100):
-    sizes = np.linspace(0.1, 1.0, 10)  # Training sizes from 10% to 100%
+    sizes = np.linspace(0.1, 1.0, 5)  # Training sizes from 10% to 100%
     errors = []
 
     for size in sizes:
         size_errors = []
         for _ in range(repetitions):
             # Randomly sample the training set
-            idx = np.random.choice(range(train_X.shape[0]), size=int(size * train_X.shape[0]), replace=False)
+            idx = np.random.choice(range(len(train_X)), size=int(size * len(train_X)), replace=False)
             sampled_train_X = train_X[idx]
             sampled_train_Y = train_Y[idx]
 
@@ -381,5 +381,19 @@ def plot_error_rate_vs_training_size(train_X, train_Y, k=15, repetitions=100):
     plt.show()
 
 
+# MNIST
+with np.load('mnist.npz') as data:
+    mnist_full_train_data_uint8 = data['train_data']
+    mnist_full_train_labels_int64 = data['train_labels']
+    mnist_test_data_uint8 = data['test_data']
+    mnist_test_labels_int64 = data['test_labels']
+
+# Split train data into train and validation sets
+mnist_train_data_uint8 = mnist_full_train_data_uint8[:50000]
+mnist_train_labels_int64 = mnist_full_train_labels_int64[:50000]
+mnist_valid_data_uint8 = mnist_full_train_data_uint8[50000:]
+mnist_valid_labels_int64 = mnist_full_train_labels_int64[50000:]
+
+plot_mat(mnist_train_data_uint8[:20, None], cmap='gray')
 
 # todo: KNN ? contouf ?
