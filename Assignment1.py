@@ -436,4 +436,6 @@ mnist_validation_errs = err_rates(mnist_validation_preds, mnist_valid_labels_int
 plt.plot(ks, [mnist_validation_errs[k] for k in ks])
 plt.xlabel('k')
 plt.ylabel('Error Rate')
+
+
 # todo: KNN ? contouf ?
