@@ -397,33 +397,19 @@ mnist_valid_labels_int64 = mnist_full_train_labels_int64[50000:]
 plot_mat(mnist_train_data_uint8[:20, None], cmap='gray')
 
 # batched KNN
-# MNIST is large.
-# Implement a batched KNN classifier, which processes the test data in small batches
-# and returns the error rates
 
-# The code should not run for more than a couple of minutes on the Colab runtime,
-# If it is slower, optimize the distance computation in KNN
-
-def batched_KNN(train_X, train_Y, test_X, ks, verbose=False, batch_size=200):
+def batched_KNN(train_X, train_Y, test_X, ks, test_batch_size=200, train_batch_size=1000):
     all_preds = {k: [] for k in ks}
 
-    for i in tqdm(range(0, test_X.shape[0], batch_size)):
-        batch_X = test_X[i:i + batch_size]
-        preds = KNN(train_X, train_Y, batch_X, ks)
-        # TODO: run KNN on the batch and save the predictions
-        for k in ks:
-            all_preds[k].extend(preds[k])
-    for k in all_preds.keys():
-        all_preds[k] = np.concatenate(all_preds[k], axis=0)
-    return all_preds
+    for i in tqdm(range(0, test_X.shape[0], test_batch_size)):
+        batch_X = test_X[i:i + test_batch_size]
+        batch_dists = []
 
+        for j in range(0, train_X.shape[0], train_batch_size):
+            train_batch_X = train_X[j:j + train_batch_size]
+            batch_dists.append(np.sqrt(np.sum((batch_X[:, None] - train_batch_X) ** 2, axis=2)))
 
-def batched_KNN2(train_X, train_Y, test_X, ks, verbose=False, batch_size=200):
-    all_preds = {k: [] for k in ks}
-
-    for i in tqdm(range(0, test_X.shape[0], batch_size)):
-        batch_X = test_X[i:i + batch_size]
-        dists = np.sqrt(np.sum((batch_X[:, None] - train_X) ** 2, axis=2))
+        dists = np.concatenate(batch_dists, axis=1)
         closest = np.argsort(dists, axis=1)
         targets = train_Y[closest]
         # TODO: run KNN on the batch and save the predictions
@@ -436,15 +422,18 @@ def batched_KNN2(train_X, train_Y, test_X, ks, verbose=False, batch_size=200):
                 predictions.append(most_common_label)
             all_preds[k].extend(predictions)
     for k in all_preds.keys():
-        all_preds[k] = np.concatenate(all_preds[k], axis=0)
+        all_preds[k] = np.array(all_preds[k])
     return all_preds
 
+# Now find the best k on the validation set
 ks = [1, 3, 5, 7, 9]
-mnist_validation_preds = batched_KNN2(
+mnist_validation_preds = batched_KNN(
     mnist_train_data_uint8.astype('float32').reshape(-1, 28*28), mnist_train_labels_int64,
     mnist_valid_data_uint8.astype('float32').reshape(-1, 28*28),
     ks)
 
 mnist_validation_errs = err_rates(mnist_validation_preds, mnist_valid_labels_int64)
 plt.plot(ks, [mnist_validation_errs[k] for k in ks])
+plt.xlabel('k')
+plt.ylabel('Error Rate')
 # todo: KNN ? contouf ?
