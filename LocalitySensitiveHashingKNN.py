@@ -10,22 +10,6 @@ mnist = fetch_openml('mnist_784')
 X = normalize(mnist.data)
 y = mnist.target.astype(int)
 
-
-# cosine_distance(a,b)=1−cosine_similarity(a,b)
-def cosine_distance(a, b):
-    return 1 - (a @ b)
-
-
-def knn_cosine(X_train, Y_train, X_test, k=3):
-    predictions = []
-    X_train = X_train / np.linalg.norm(X_train, axis=1, keepdims=True)
-    X_test = X_test / np.linalg.norm(X_test, axis=1, keepdims=True)
-    dists = 1 - np.dot(X_test, X_train.T)
-    closest = np.argsort(dists, axis=1)[:, :k]
-    predictions = np.array([np.bincount(Y_train[closest[i]]).argmax() for i in range(X_test.shape[0])])
-
-    return predictions
-
 class LSH:
     def __init__(self, num_hashes, num_buckets, input_dim):
         self.num_hashes = num_hashes
@@ -46,3 +30,26 @@ class LSH:
     def query(self, x):
         bucket_id = self._hash(x)
         return self.buckets.get(bucket_id, [])
+# cosine_distance(a,b)=1−cosine_similarity(a,b)
+def cosine_distance(a, b):
+    return 1 - (a @ b)
+
+
+def knn_cosine(X_train, Y_train, X_test, k=3):
+    predictions = []
+    X_train = X_train / np.linalg.norm(X_train, axis=1, keepdims=True)
+    X_test = X_test / np.linalg.norm(X_test, axis=1, keepdims=True)
+    dists = 1 - np.dot(X_test, X_train.T)
+    closest = np.argsort(dists, axis=1)[:, :k]
+    predictions = np.array([np.bincount(Y_train[closest[i]]).argmax() for i in range(X_test.shape[0])])
+
+    return predictions
+
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+lsh = LSH(num_hashes=10, num_buckets=500, input_dim=X_train.shape[1])
+lsh.fit(X_train, y_train)
+
+k = 3
+predictions = knn_cosine(X_train, y_train, X_test, lsh, k)
