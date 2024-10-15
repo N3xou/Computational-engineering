@@ -44,10 +44,14 @@ def knn_cosine(X_train, Y_train, X_test, k=3):
     predictions = np.array([np.bincount(Y_train[closest[i]]).argmax() for i in range(X_test.shape[0])])
 
     return predictions
-def lsh_knn_cosine(X_train,Y_train,X_test,lsh, k=3):
-    predictions = []
+def lsh_knn_cosine(X_train,Y_train,X_test, ks, num_hashes=10, num_buckets=100):
+    predictions = {k: [] for k in ks}
     X_train = X_train / np.linalg.norm(X_train, axis=1, keepdims=True)
     X_test = X_test / np.linalg.norm(X_test, axis=1, keepdims=True)
+    input_dim = X_train.shape[1]
+    lsh = LSH(num_hashes=num_hashes, num_buckets=num_buckets, input_dim=input_dim)
+    lsh.fit(X_train, Y_train)
+
     for x in X_test:
         candidates = lsh.query(x)
         if len(candidates) == 0:
@@ -55,12 +59,11 @@ def lsh_knn_cosine(X_train,Y_train,X_test,lsh, k=3):
         candidate_X = np.array([c[0] for c in candidates])
         candidate_y = np.array([c[1] for c in candidates])
         dists = 1 - np.dot(x, candidate_X.T)
-
-
         closest = np.argsort(dists)[:k]
-        predictions.append(np.bincount(candidate_y[closest]).argmax())
+        predictions[k].append(np.bincount(candidate_y[closest]).argmax())
 
     return np.array(predictions)
+
 
 
 
