@@ -65,38 +65,41 @@ def lsh_knn_cosine(X_train,Y_train,X_test,lsh, k=3):
 
 
 def leave_one_out_error(train_X, train_Y, ks, _lsh=False):
-    preds_dict = {k: [] for k in ks}
+    def lsh_leave_one_out_error(train_X, train_Y, ks, num_hashes, num_buckets):
+        preds_dict = {k: [] for k in ks}
+        for i in range(len(train_X)):
 
-    for i in range(len(train_X)):
+            train_X_loo = np.delete(train_X, i, axis=0)
+            train_Y_loo = np.delete(train_Y, i)
+            test_X = train_X[i].reshape(1, -1)
+            lsh.fit(train_X_loo, train_Y_loo)
+            # test_Y = train_Y[i]
+            preds = lsh_knn_cosine(train_X_loo, train_Y_loo, test_X, ks, num_hashes=num_hashes, num_buckets=num_buckets)
 
-        train_X_loo = np.delete(train_X, i, axis=0)
-        train_Y_loo = np.delete(train_Y, i)
-        test_X = train_X[i].reshape(1, -1)
-        # test_Y = train_Y[i]
+            for k in ks:
+                preds_dict[k].append(preds[k][0])
 
-        if lsh:
-            preds = lsh_knn_cosine(train_X_loo, train_Y_loo, test_X, ks)
-        else:
-            preds = KNN(train_X_loo, train_Y_loo, test_X, ks)
+        return err_rates(preds_dict, train_Y)
 
-        for k in ks:
-            preds_dict[k].append(preds[k][0])
+    def lsh_plot_error_rate_vs_k(train_X, train_Y, num_hashes=10, num_buckets=100):
+        ks = range(1, 4)  # Experiment with K values from 1 to 19
+        errors = lsh_leave_one_out_error(train_X, train_Y, ks, num_hashes=num_hashes, num_buckets=num_buckets)
 
-    return err_rates(preds_dict, train_Y)
+        plt.figure(figsize=(10, 6))
+        plt.plot(ks, list(errors.values()), marker='o')
+        plt.title("Leave-One-Out Error Rate vs K")
+        plt.xlabel("Number of Neighbors (K)")
+        plt.ylabel("Leave-One-Out Error Rate")
+        plt.grid(True)
+        plt.xticks(ks)
+        plt.show()
 
-
-def plot_error_rate_vs_k(train_X, train_Y, _lsh=False):
-    ks = range(1, 20)  # Experiment with K values from 1 to 19
-    errors = leave_one_out_error(train_X, train_Y, ks, _lsh)
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(ks, list(errors.values()), marker='o')
-    plt.title("Leave-One-Out Error Rate vs K")
-    plt.xlabel("Number of Neighbors (K)")
-    plt.ylabel("Leave-One-Out Error Rate")
-    plt.grid(True)
-    plt.xticks(ks)
-    plt.show()
+    def err_rates(preds, test_Y):
+        ret = {}
+        for k, preds_k in preds.items():
+            # TODO: fill in error count computation
+            ret[k] = np.sum(preds_k != test_Y) / len(test_Y)
+        return ret
 
 
 def plot_error_rate_vs_training_size(train_X, train_Y, k=15, repetitions=100):
@@ -132,8 +135,8 @@ y_test = np.array(y_test)
 lsh = LSH(num_hashes=10, num_buckets=500, input_dim=X_train.shape[1])
 lsh.fit(X_train, y_train)
 
-k = 3
-model = lsh_knn_cosine(X_train, y_train, X_test, lsh, k)
+k=3
+predictions = lsh_knn_cosine(X_train, y_train, X_test, lsh, k)
 plot_error_rate_vs_k(X_train, y_train, _lsh=True)
 print("Predictions for the first 10 test samples:", predictions[:10])
 
