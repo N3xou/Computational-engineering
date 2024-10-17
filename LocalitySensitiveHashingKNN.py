@@ -186,15 +186,18 @@ def plot_runtime(knn_time, lsh_time):
     # Display the runtime plot
     plt.tight_layout()
     plt.show()
+
+
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=5)
 y_train = np.array(y_train)
 y_test = np.array(y_test)
-lsh = LSH(num_hashes=10, num_buckets=500, input_dim=X_train.shape[1])
-lsh.fit(X_train, y_train)
+Ks = [1,2]
 
-k=3
-predictions = lsh_knn_cosine(X_train, y_train, X_test, lsh, k)
-plot_error_rate_vs_k(X_train, y_train, _lsh=True)
-print("Predictions for the first 10 test samples:", predictions[:10])
-
-
+#print(KNN(X_train,y_train,X_test, Ks))
+#print(lsh_knn_cosine(X_train, y_train, X_test, Ks))
+#predictions = lsh_knn_cosine(X_train, y_train, X_test, lsh)
+#lsh_plot_error_rate_vs_k(X_train, y_train)
+acc_lsh, acc_knn, lsh_time, knn_time, err_lsh,err_knn = measure_speedup_and_accuracy(X_train[:4000], y_train[:4000], X_test, y_test, ks = Ks)
+plot_accuracy(acc_lsh, acc_knn)
+plot_accuracy(err_lsh,err_knn)
+plot_runtime(knn_time, lsh_time)
