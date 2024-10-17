@@ -140,6 +140,52 @@ def plot_error_rate_vs_training_size(train_X, train_Y, k=15, repetitions=100):
     plt.show()
 
 
+def plot_accuracy(acc_lsh, acc_knn):
+    ks = list(acc_lsh.keys())  # Get the k values
+    num_k = len(ks)
+
+    # Create an array for x-axis positions
+    x = np.arange(num_k)
+
+    # Create subplots for accuracy
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot accuracy for LSH
+    ax.bar(x - 0.1, [acc_lsh[k] for k in ks], width=0.2, label='Accuracy LSH', color='blue')
+
+    # Plot accuracy for standard kNN
+    ax.bar(x + 0.1, [acc_knn] * num_k, width=0.2, label='Accuracy kNN', color='orange')
+
+    # Labeling
+    ax.set_xlabel('k Values')
+    ax.set_ylabel('Accuracy')
+    ax.set_title('Accuracy Comparison: LSH-based kNN vs Standard kNN')
+    ax.set_xticks(x)
+    ax.set_xticklabels(ks)
+    ax.legend()
+
+    # Display the accuracy plot
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_runtime(knn_time, lsh_time):
+    models = ['Standard kNN', 'LSH-based kNN']
+    runtimes = [knn_time, lsh_time]
+
+    # Create subplots for runtime
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    # Plot runtime for both models
+    ax.bar(models, runtimes, color=['orange', 'blue'])
+
+    # Labeling
+    ax.set_ylabel('Runtime (seconds)')
+    ax.set_title('Runtime Comparison: Standard kNN vs LSH-based kNN')
+
+    # Display the runtime plot
+    plt.tight_layout()
+    plt.show()
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=5)
 y_train = np.array(y_train)
 y_test = np.array(y_test)
