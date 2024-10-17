@@ -262,7 +262,10 @@ iris_y = np.array(iris_df['target'])
 
 #use np.unique with suitable options to map the class names to numbers
 target_names, iris_y_ids = np.unique(iris_y, return_inverse=True)
-mesh_x, mesh_y = np.meshgrid(iris_x,iris_y_ids)
+x_min, x_max = iris_x[:, 0].min() - 1, iris_x[:, 0].max() + 1
+y_min, y_max = iris_x[:, 1].min() - 1, iris_x[:, 1].max() + 1
+mesh_x, mesh_y = np.meshgrid(np.linspace(x_min, x_max, 200), np.linspace(y_min, y_max, 200))
+
 #print(target_names)
 #print(iris_y_ids)
 mesh_data = np.hstack([mesh_x.reshape(-1, 1), mesh_y.reshape(-1, 1)])
@@ -271,8 +274,9 @@ preds = KNN(iris_x, iris_y_ids, mesh_data, [1, 3, 5, 7])
 for k, preds_k in preds.items():
     plt.figure()
     plt.title(f"Decision boundary for k={k}")
-    plt.contourf(mesh_x, mesh_y, preds_k.reshape(mesh_x.shape),alpha=0.5, c = 'iris_y_ids')
-    plt.scatter(iris_x[:, 0], iris_x[:, 1], c=iris_y_ids, edgecolor='k', cmap=plt.cm.RdYlBu)
+    plt.contourf(mesh_x, mesh_y, preds_k.reshape(mesh_x.shape), alpha=0.5, levels=5)
+    plt.scatter(iris_x[:, 0], iris_x[:, 1], c=iris_y_ids, edgecolor='k')
+
 
 #
 #TODO: write a function to compute error rates
