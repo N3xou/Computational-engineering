@@ -44,7 +44,9 @@ def knn_cosine(X_train, Y_train, X_test, k=3):
     predictions = np.array([np.bincount(Y_train[closest[i]]).argmax() for i in range(X_test.shape[0])])
 
     return predictions
-def lsh_knn_cosine(X_train,Y_train,X_test, ks, num_hashes=10, num_buckets=100):
+
+
+def lsh_knn_cosine(X_train, Y_train, X_test, ks, num_hashes=10, num_buckets=100):
     predictions = {k: [] for k in ks}
     X_train = X_train / np.linalg.norm(X_train, axis=1, keepdims=True)
     X_test = X_test / np.linalg.norm(X_test, axis=1, keepdims=True)
@@ -56,15 +58,21 @@ def lsh_knn_cosine(X_train,Y_train,X_test, ks, num_hashes=10, num_buckets=100):
         candidates = lsh.query(x)
         if len(candidates) == 0:
             continue
+
+        candidates = np.random.choice(candidates, 1000, replace=False)
+
         candidate_X = np.array([c[0] for c in candidates])
         candidate_y = np.array([c[1] for c in candidates])
         dists = 1 - np.dot(x, candidate_X.T)
-        closest = np.argsort(dists)[:k]
-        predictions[k].append(np.bincount(candidate_y[closest]).argmax())
+        sortedIdx = np.argsort(dists)
 
-    return np.array(predictions)
+        for k in ks:
+            closest = sortedIdx[:k]
+            nearest_labels = candidate_y[closest]
+            prediction = np.bincount(nearest_labels).argmax()
+            predictions[k].append(prediction)
 
-
+    return predictions
 
 
 def leave_one_out_error(train_X, train_Y, ks, _lsh=False):
