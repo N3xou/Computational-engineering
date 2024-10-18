@@ -188,16 +188,38 @@ def plot_runtime(knn_time, lsh_time):
     plt.show()
 
 
+mnist = fetch_openml('mnist_784')
+X = normalize(mnist.data)
+#X = mnist.data
+y = mnist.target.astype(int)
+
+with np.load('mnist.npz') as data:
+    mnist_full_train_data_uint8 = data['train_data']
+    mnist_full_train_labels_int64 = data['train_labels']
+    mnist_test_data_uint8 = data['test_data']
+    mnist_test_labels_int64 = data['test_labels']
+
+# Split train data into train and validation sets
+mnist_train_data_uint8 = np.array(mnist_full_train_data_uint8[:50000])
+mnist_train_labels_int64 = np.array(mnist_full_train_labels_int64[:50000])
+mnist_valid_data_uint8 = mnist_full_train_data_uint8[50000:]
+mnist_valid_labels_int64 = mnist_full_train_labels_int64[50000:]
+
+
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=5)
 y_train = np.array(y_train)
 y_test = np.array(y_test)
-Ks = [1,2]
+Ks = [3,5]
 
 #print(KNN(X_train,y_train,X_test, Ks))
 #print(lsh_knn_cosine(X_train, y_train, X_test, Ks))
 #predictions = lsh_knn_cosine(X_train, y_train, X_test, lsh)
 #lsh_plot_error_rate_vs_k(X_train, y_train)
-acc_lsh, acc_knn, lsh_time, knn_time, err_lsh,err_knn = measure_speedup_and_accuracy(X_train[:4000], y_train[:4000], X_test, y_test, ks = Ks)
+
+acc_lsh, acc_knn, lsh_time, knn_time = measure_speedup_and_accuracy(mnist_train_data_uint8, mnist_train_labels_int64, mnist_valid_data_uint8, mnist_valid_labels_int64, ks = Ks)
+#acc_lsh, acc_knn, lsh_time, knn_time = measure_speedup_and_accuracy(X_train[:2000], y_train[:2000], X_test[:2000], y_test[:2000], ks = Ks)
 plot_accuracy(acc_lsh, acc_knn)
-plot_accuracy(err_lsh,err_knn)
+
+#plot_accuracy(err_lsh,err_knn)
 plot_runtime(knn_time, lsh_time)
+#
