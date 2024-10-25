@@ -197,3 +197,11 @@ print("Languages:", ",".join(langs))
 print("Letters:", ", ".join(letters))
 print("P(ę|Polish) =", df.loc["ę", "Polish"])
 
+
+# The values are percentages of letter appearance, but curiously enough they don't
+# sum to 100%.
+print(f"\nTotal letter count by language:\n{df.sum(0)}")
+from sklearn import preprocessing
+# Thus we normalize the data such that the letter frequencies add up to 1 for each language
+df_norm = preprocessing.normalize(df, norm="l1", axis=1)
+print(f"\nAfter normalization:\n{df_norm.sum(0)}")
