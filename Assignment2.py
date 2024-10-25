@@ -205,3 +205,28 @@ from sklearn import preprocessing
 # Thus we normalize the data such that the letter frequencies add up to 1 for each language
 df_norm = preprocessing.normalize(df, norm="l1", axis=1)
 print(f"\nAfter normalization:\n{df_norm.sum(0)}")
+
+def naive_bayes(sent, langs, df):
+    """Returns the most probable language of a sentence"""
+
+    # Convert frequencies to log-probabilities and convert back to DataFrame
+    df_log = pd.DataFrame(np.log(df + 1e-100), columns=df.columns, index=df.index)
+
+    # Normalize the sentence by removing spaces, punctuations, and making it lowercase
+    sent = ''.join(filter(str.isalpha, sent)).lower()
+
+    log_probs = {}
+    for lang in langs:
+        # Initialize log probability for the language
+        log_prob = 0
+        for char in sent:
+            if char in df_log.columns:
+                log_prob += df_log.loc[lang, char]  # Sum log-probabilities for characters in the sentence
+            else:
+                # Small penalty for characters not in the language model
+                log_prob += np.log(1e-100)
+        log_probs[lang] = log_prob
+
+    # Sort languages by descending probability
+    probs = dict(sorted(log_probs.items(), key=lambda x: x[1], reverse=True))
+    return probs
