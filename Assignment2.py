@@ -295,3 +295,57 @@ YY = compute_polynomial(XX, true_poly_theta)
 plt.scatter(train_data[0], train_data[1], label="train data", color="r")
 plt.plot(XX, compute_polynomial(XX, true_poly_theta), label="ground truth")
 plt.legend(loc="upper left")
+
+def poly_fit(data, degree, alpha):
+    "Fit a polynomial of a given degree and weight decay parameter alpha"
+    X = powers_of_X(data[0], degree)
+    Y = data[1].reshape(-1, 1)
+
+    N, d = X.shape
+    I = np.eye(d)
+
+    Theta =np.linalg.solve(X.T @ X + alpha * I, X.T @ Y)
+    return Theta
+
+num_test_samples = 100
+num_train_samples = [30]
+alphas = [0.0, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 1.0]
+degrees = range(15)
+num_repetitions = 30
+
+
+# sample a single test dataset for all experiments
+test_data = make_dataset(num_test_samples)
+results = []
+
+for (repetition, num_train, alpha, degree,) in itertools.product(
+    range(num_repetitions), num_train_samples, alphas, degrees
+):
+    train_data = make_dataset(num_train)
+    Theta = poly_fit(train_data, degree, alpha)
+    Y_train_pred = compute_polynomial(train_data[0], Theta)
+    Y_test_pred = compute_polynomial(test_data[0], Theta)
+    train_err = np.mean((Y_train_pred - train_data[1]) ** 2)
+    test_err = np.mean((Y_test_pred - test_data[1]) ** 2)
+    results.append(
+        {
+            "repetition": repetition,
+            "num_train": num_train,
+            "alpha": alpha,
+            "degree": degree,
+            "dataset": "train",
+            "err_rate": train_err,
+        }
+    )
+    results.append(
+        {
+            "repetition": repetition,
+            "num_train": num_train,
+            "alpha": alpha,
+            "degree": degree,
+            "dataset": "test",
+            "err_rate": test_err,
+        }
+    )
+results_df = pd.DataFrame(results)
+results_df.head()
