@@ -444,3 +444,141 @@ sns.relplot(
 
 plt.title("Train vs Test Error for Different Polynomial Degrees and Training Sizes (alpha=1e-6)")
 plt.show()
+
+
+from sklearn.preprocessing import StandardScaler
+def generate_dataset(N, sigma=0.1):
+    """ Generate dataset with x∝U(0;10) and
+        y∝N(μ=1+0.2x−0.05x^2+0.004x^3, σ=0.1) """
+    X = np.random.uniform(0, 10, size=(N, 1))
+    Y_actual = 1 + 0.2 * X - 0.05 * X**2 + 0.004 * X**3
+    Y = Y_actual + np.random.randn(N, 1) * sigma
+    return X, Y
+
+# Polynomial fitting with normalization and ridge regularization
+def polynomial_fit_with_scaling(data, degree, alpha):
+    """Fit polynomial with normalization and ridge regularization."""
+    X_poly = expand_features(data[0], degree)
+    Y = data[1].reshape(-1, 1)
+
+    # Apply scaling
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_poly)
+
+    Theta = np.linalg.solve(X_scaled.T @ X_scaled + alpha * np.eye(X_scaled.shape[1]), X_scaled.T @ Y)
+    return Theta, scaler
+
+# Model evaluation on train and test datasets
+def evaluate_polynomial_model(train_data, test_data, degree, alpha):
+    """Evaluate model performance on train and test data."""
+    Theta, scaler = polynomial_fit_with_scaling(train_data, degree, alpha)
+
+    # Transform training data
+    X_train_scaled = scaler.transform(expand_features(train_data[0], degree))
+    train_error = np.mean((X_train_scaled @ Theta - train_data[1]) ** 2)
+
+    # Transform test data
+    X_test_scaled = scaler.transform(expand_features(test_data[0], degree))
+    test_error = np.mean((X_test_scaled @ Theta - test_data[1]) ** 2)
+
+    return train_error, test_error
+
+# Generate polynomial features (excluding bias term)
+def expand_features(X, degree):
+    return np.vander(X.flatten(), degree + 1, increasing=True)[:, 1:]
+
+train_sizes = [10, 20, 50, 100, 200]
+polynomial_degrees = range(1, 10)
+regularization_param = 1e-6
+test_set = generate_dataset(100)
+
+results = []
+
+# Iterate over train sizes and polynomial degrees
+for size in train_sizes:
+    for deg in polynomial_degrees:
+        train_set = generate_dataset(size)
+        train_error, test_error = evaluate_polynomial_model(train_set, test_set, deg, regularization_param)
+        results.append({
+            "train_size": size,
+            "degree": deg,
+            "dataset": "train",
+            "error_rate": train_error
+        })
+        results.append({
+            "train_size": size,
+            "degree": deg,
+            "dataset": "test",
+            "error_rate": test_error
+        })
+
+# Convert results to DataFrame
+results_df = pd.DataFrame(results)
+
+# Plotting the results
+sns.relplot(
+    data=results_df,
+    x="degree", y="error_rate", hue="dataset", col="train_size", kind="line",
+    facet_kws={"sharey": False, "sharex": True}, col_wrap=3
+)
+plt.show()
+
+
+#
+# Implement the Rosenbrock function
+#
+
+
+def rosenbrock_v(x):
+    """Returns the value of Rosenbrock's function at x"""
+    return (1 - x[0])**2 + 100 * (x[1] - x[0]**2)**2
+
+
+def rosenbrock(x):
+    """Returns the value of rosenbrock's function and its gradient at x
+    """
+    val = rosenbrock_v(x)
+    # Gradient should be np.array
+    dVdX= np.array([
+        -2 * (1 - x[0]) - 400 * x[0] * (x[1] - x[0]**2),
+        200 * (x[1] - x[0]**2)
+    ])
+    return [val, dVdX]
+
+
+#
+# Feel free to add your own test points.
+#
+for test_point in [[0.0, 0.0], [1.0, 1.0], [0.5, 1.0], [1.0, 0.5]]:
+    assert check_gradient(rosenbrock, np.array(test_point), prec=1e-5)
+
+    lbfsg_hist = []
+
+
+    def save_hist(x):
+        lbfsg_hist.append(np.array(x))
+
+
+    x_start = [0.0, 2.0]
+    lbfsgb_ret = sopt.fmin_l_bfgs_b(rosenbrock, x_start, callback=save_hist)
+
+    # TODO: plot the countours of the function and overlay the optimization trajectory
+    x = np.linspace(0, 2, 400)
+    y = np.linspace(0, 3, 400)
+    X, Y = np.meshgrid(x, y)
+    Z = rosenbrock_v([X, Y])
+
+    plt.figure(figsize=(10, 8))
+    contour = plt.contour(X, Y, Z, levels=np.logspace(0, 5, 35), cmap='viridis')
+    plt.colorbar(contour)
+    plt.title("Contour plot of the Rosenbrock function (Upper Right Quadrant)")
+    plt.xlabel("x")
+    plt.ylabel("y")
+
+    hist = np.array(lbfsg_hist)
+    plt.plot(hist[:, 0], hist[:, 1], 'r.-', markersize=5, label='Optimization Path')
+    plt.plot(lbfsgb_ret[0][0], lbfsgb_ret[0][1], 'bo', label='Optimum')
+
+    plt.xlim(0, 2)
+    plt.ylim(0, 3)
+    plt.legend()
