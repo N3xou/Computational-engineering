@@ -349,3 +349,98 @@ for (repetition, num_train, alpha, degree,) in itertools.product(
     )
 results_df = pd.DataFrame(results)
 results_df.head()
+
+
+# TODO
+#
+# Plot how the error rates depend on the the polynomial degree and regularization
+# constant.
+# Try to find the best value for lambda on the test set, explain the model
+# behavoir for small lambdas and large lambdas.
+#
+# Hint: the plots below all use sns.relplot!
+#
+sns.set(style="whitegrid")
+
+sns.relplot(
+    x="degree", y="err_rate", hue="alpha", kind="line", col="dataset",
+    data=results_df[results_df["dataset"] == "train"],
+    palette="tab10", col_wrap=2, height=4, aspect=1.5
+)
+plt.suptitle("Training Error by Degree and Alpha")
+plt.show()
+
+sns.relplot(
+    data=results_df,
+    x="degree",
+    y="err_rate",
+    hue="alpha",
+    kind="line"
+)
+
+plt.title("Error rates as a function of polynomial degree and alpha")
+plt.show()
+
+# TODO
+# Now set a small regularizatoin for numerical stability  (e.g. alpha=1e-6)
+# and present the relationship between
+# train and test error rates for varous degrees of the polynomial for
+# different sizes of the train set.
+#
+train_sample_sizes = [10, 30, 50, 100]
+reg_alpha = 1e-6
+poly_degrees = range(15)
+test_sample_size = 100
+repeats = 30
+
+test_dataset = make_dataset(test_sample_size)
+
+error_results = []
+
+for (rep, train_size, degree) in itertools.product(
+    range(repeats), train_sample_sizes, poly_degrees
+):
+    train_dataset = make_dataset(train_size)
+
+    model_params = poly_fit(train_dataset, degree, reg_alpha)
+
+    train_predictions = compute_polynomial(train_dataset[0], model_params)
+    test_predictions = compute_polynomial(test_dataset[0], model_params)
+
+    train_error = np.mean((train_predictions - train_dataset[1]) ** 2)
+    test_error = np.mean((test_predictions - test_dataset[1]) ** 2)
+
+    error_results.append(
+        {
+            "rep": rep,
+            "train_size": train_size,
+            "degree": degree,
+            "dataset": "train",
+            "err_rate": train_error,
+        }
+    )
+    error_results.append(
+        {
+            "rep": rep,
+            "train_size": train_size,
+            "degree": degree,
+            "dataset": "test",
+            "err_rate": test_error,
+        }
+    )
+
+error_df = pd.DataFrame(error_results)
+
+sns.relplot(
+    data=error_df,
+    x="degree",
+    y="err_rate",
+    hue="dataset",
+    col="train_size",
+    kind="line",
+    facet_kws={'sharey': False},
+    markers=True,
+)
+
+plt.title("Train vs Test Error for Different Polynomial Degrees and Training Sizes (alpha=1e-6)")
+plt.show()
