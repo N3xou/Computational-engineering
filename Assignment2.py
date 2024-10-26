@@ -785,3 +785,163 @@ for alpha in alphas:
   plt.title(fr'$\alpha$ = {alpha:.2e}')
   plt.xlim(pl_min, pl_max)
   plt.show()
+
+  data = pd.read_csv(
+      "https://gitlab.com/inzynieria_obliczeniowa_23_24/common/-/raw/main/03-house-prices-outliers.csv",
+      index_col=0,
+  )
+  data.head()
+  X = np.stack((np.ones_like(data.area), data.area)).T
+  X
+  Y = np.asarray(data.price)[:, None]
+  Y
+  # Compute least squares solution
+  theta_lsq = np.linalg.inv(X.T @ X) @ (X.T @ Y)
+
+  # Predict prices based on the model
+  Y_predicted_lsq = X @ theta_lsq
+
+  # Calculate residuals
+  residuals_lsq = Y - Y_predicted_lsq
+
+  # Plot histogram of residuals and overlay Gaussian distribution
+  sns.histplot(residuals_lsq, bins=30, kde=False, color="green")
+  plt.xlabel("Residuals")
+  plt.ylabel("Count")
+
+  # Fit Gaussian distribution to residuals
+  mean_lsq, std_dev_lsq = norm.fit(residuals_lsq)
+
+  # Plot the Gaussian curve on top of the histogram
+  x_vals = np.linspace(residuals_lsq.min(), residuals_lsq.max(), 100)
+  pdf_vals = norm.pdf(x_vals, mean_lsq, std_dev_lsq)
+  plt.plot(x_vals, pdf_vals * len(residuals_lsq) * np.diff(np.histogram(residuals_lsq, bins=30)[1])[0], 'r-',
+           linewidth=2)
+  plt.title("Residuals with Fitted Gaussian")
+  plt.show()
+
+  # Compute the 25th and 75th quantiles of the normal distribution
+  quantiles_lsq = norm.ppf([0.25, 0.75], loc=mean_lsq, scale=std_dev_lsq)
+  print(f"Coefficients from Least Squares: {theta_lsq}")
+  print(f"Fraction of residuals below 25th percentile: {np.mean(residuals_lsq < quantiles_lsq[0]):.6f}, "
+        f"above 75th percentile: {np.mean(residuals_lsq > quantiles_lsq[1]):.6f}")
+  print(f"Normal Distribution Quantiles: {quantiles_lsq}")
+
+  # Calculate the fraction of residuals within one standard deviation
+  std_confidence = np.mean(np.abs(residuals_lsq) < std_dev_lsq)
+  print(f"Fraction of residuals within one standard deviation: {std_confidence:.6f}")
+
+  from scipy.stats import norm
+
+  # Compute least squares solution
+  theta_lsq = np.linalg.inv(X.T @ X) @ (X.T @ Y)
+
+  # Predict prices based on the model
+  Y_predicted_lsq = X @ theta_lsq
+
+  # Calculate residuals
+  residuals_lsq = Y - Y_predicted_lsq
+
+  # Plot histogram of residuals and overlay Gaussian distribution
+  sns.histplot(residuals_lsq, bins=30, kde=False, color="green")
+  plt.xlabel("Residuals")
+  plt.ylabel("Count")
+
+  # Fit Gaussian distribution to residuals
+  mean_lsq, std_dev_lsq = norm.fit(residuals_lsq)
+
+  # Plot the Gaussian curve on top of the histogram
+  x_vals = np.linspace(residuals_lsq.min(), residuals_lsq.max(), 100)
+  pdf_vals = norm.pdf(x_vals, mean_lsq, std_dev_lsq)
+  plt.plot(x_vals, pdf_vals * len(residuals_lsq) * np.diff(np.histogram(residuals_lsq, bins=30)[1])[0], 'r-',
+           linewidth=2)
+  plt.title("Residuals with Fitted Gaussian")
+  plt.show()
+
+  # Compute the 25th and 75th quantiles of the normal distribution
+  quantiles_lsq = norm.ppf([0.25, 0.75], loc=mean_lsq, scale=std_dev_lsq)
+  print(f"Coefficients from Least Squares: {theta_lsq}")
+  print(f"Fraction of residuals below 25th percentile: {np.mean(residuals_lsq < quantiles_lsq[0]):.6f}, "
+        f"above 75th percentile: {np.mean(residuals_lsq > quantiles_lsq[1]):.6f}")
+  print(f"Normal Distribution Quantiles: {quantiles_lsq}")
+
+  # Calculate the fraction of residuals within one standard deviation
+  std_confidence = np.mean(np.abs(residuals_lsq) < std_dev_lsq)
+  print(f"Fraction of residuals within one standard deviation: {std_confidence:.6f}")
+
+  # Define threshold to detect outliers (3 times the standard deviation)
+  outlier_threshold = 3 * std_dev_lsq
+  mask_non_outliers = np.abs(residuals_lsq) < outlier_threshold
+
+  # Filter data points that are not outliers
+  X_filtered = X[mask_non_outliers.ravel()]
+  Y_filtered = Y[mask_non_outliers.ravel()]
+
+  # Refit the model using the cleaned dataset
+  theta_cleaned = np.linalg.inv(X_filtered.T @ X_filtered) @ (X_filtered.T @ Y_filtered)
+  Y_pred_cleaned = X_filtered @ theta_cleaned
+
+  # Recalculate residuals using the cleaned dataset
+  residuals_cleaned = Y_filtered - Y_pred_cleaned
+
+  # Fit a Gaussian distribution to the new residuals (after removing outliers)
+  mean_cleaned, std_dev_cleaned = norm.fit(residuals_cleaned)
+
+  # Calculate the 25th and 75th quantiles for the filtered residuals
+  quantiles_cleaned = norm.ppf([0.25, 0.75], loc=mean_cleaned, scale=std_dev_cleaned)
+  print(f"Theta after refitting on filtered data: {theta_cleaned}")
+  print(f"Fraction of errors below 25th percentile: {np.mean(residuals_cleaned < quantiles_cleaned[0]):.6f}, "
+        f"above 75th percentile: {np.mean(residuals_cleaned > quantiles_cleaned[1]):.6f}")
+  print(f"Quantiles from normal distribution on filtered data: {quantiles_cleaned}")
+
+  from scipy.optimize import fmin_l_bfgs_b
+
+
+  def custom_quantile_loss(Theta, X, Y, tau=0.75):
+      """Loss function for quantile regression with gradient"""
+      Theta_reshaped = Theta.reshape(-1, 1)
+      residuals = Y - X @ Theta_reshaped
+      quantile_loss_value = np.mean((tau * np.maximum(residuals, 0)) + ((1 - tau) * np.maximum(-residuals, 0)))
+      grad_value = np.mean(-X.T @ ((tau * (residuals >= 0)) + (1 - tau) * (residuals < 0)).astype(float), axis=1)
+      return quantile_loss_value, grad_value
+
+
+  # Use the initial parameters from the least squares solution (after filtering outliers)
+  Theta_init = theta_cleaned.ravel()
+
+  # Perform quantile regression for different quantiles (25th, 50th, 75th)
+  tau_values = [0.25, 0.50, 0.75]
+  Theta_results = {}
+
+  for tau in tau_values:
+      Theta_optimized, _, _ = fmin_l_bfgs_b(lambda Theta: custom_quantile_loss(Theta, X_filtered, Y_filtered, tau=tau),
+                                            Theta_init)
+      Theta_results[tau] = Theta_optimized
+      print(f"Theta for Quantile {int(tau * 100)}: {Theta_optimized}")
+
+      # Calculate the fraction of negative residuals for each quantile
+      residuals_quantile = Y_filtered - X_filtered @ Theta_optimized.reshape(-1, 1)
+      frac_neg_errors = np.mean(residuals_quantile < 0)
+      print(f"Fraction of negative residuals: {frac_neg_errors:.6f} (expected {tau:.6f})")
+
+  # Plot the data points along with regression lines for least squares and quantile regression
+  plt.scatter(X_filtered[:, 1], Y_filtered, alpha=0.3, label="Data")
+  plt.plot(X_filtered[:, 1], X_filtered @ theta_cleaned, label="Least Squares", color='blue')
+  plt.plot(X_filtered[:, 1], X_filtered @ Theta_results[0.25], label="Quantile 25%", color='orange')
+  plt.plot(X_filtered[:, 1], X_filtered @ Theta_results[0.50], label="Quantile 50%", color='green')
+  plt.plot(X_filtered[:, 1], X_filtered @ Theta_results[0.75], label="Quantile 75%", color='purple')
+
+  plt.xlabel("Area (sq meters)")
+  plt.ylabel("Price")
+  plt.legend()
+  plt.show()
+
+  # Estimate the 75th percentile price for a flat of 60 square meters
+  flat_features = np.array([1, 60])  # [intercept term, 60 sqm area]
+  price_75th_quantile = flat_features @ Theta_results[0.75]
+  print(f"Estimated 75th percentile price for a 60 sqm flat: {price_75th_quantile}")
+
+  # Assess the impact of removing outliers
+  price_75th_quantile_filtered = flat_features @ Theta_results[0.75]
+  print(
+      f"Difference in 75th percentile price after removing outliers: {price_75th_quantile_filtered - price_75th_quantile}")
