@@ -945,3 +945,61 @@ for alpha in alphas:
   price_75th_quantile_filtered = flat_features @ Theta_results[0.75]
   print(
       f"Difference in 75th percentile price after removing outliers: {price_75th_quantile_filtered - price_75th_quantile}")
+
+
+  def huber_loss(y_true, y_pred, delta=1.0):
+      """Calculate the Huber loss."""
+      residual = y_true - y_pred
+      loss = np.where(np.abs(residual) <= delta,
+                      0.5 * residual ** 2,
+                      delta * (np.abs(residual) - 0.5 * delta))
+      return np.mean(loss)
+
+
+  def general_robust_loss(X, Y, alpha, delta=1.0):
+      """Calculate the General Robust loss for linear regression."""
+      # Fit the linear model
+      theta = np.linalg.inv(X.T @ X) @ (X.T @ Y)
+
+      # Predictions
+      Y_pred = X @ theta
+
+      # Compute the Huber loss
+      loss = huber_loss(Y, Y_pred, delta)
+
+      return theta, loss
+# Hyperparameters
+alpha_values = [0.0, 0.01, 0.1, 1.0]
+delta = 1.0  # This can also be tuned
+
+results = []
+
+for alpha in alpha_values:
+    theta, loss = general_robust_loss(X, Y, alpha, delta)
+    results.append((alpha, theta.flatten(), loss))
+
+# Print results
+for alpha, theta, loss in results:
+    print(f"Alpha: {alpha}, Coefficients: {theta}, Loss: {loss:.4f}")
+
+def adaptive_general_robust_loss(X, Y, alpha, max_iterations=100):
+    """Calculate the adaptive General Robust loss for linear regression."""
+    # Initialize delta based on standard deviation of Y
+    delta = np.std(Y)
+    theta = np.zeros((X.shape[1], 1))
+
+    for _ in range(max_iterations):
+        Y_pred = X @ theta
+        residuals = Y - Y_pred
+
+        # Update delta as the median of the residuals
+        delta = np.median(np.abs(residuals))
+
+        # Fit the linear model
+        theta = np.linalg.inv(X.T @ X) @ (X.T @ Y)  # you can replace this with a more robust fitting method if needed
+
+    return theta
+
+# Apply the adaptive loss
+theta_adaptive = adaptive_general_robust_loss(X, Y, alpha)
+print(f"Adaptive Coefficients: {theta_adaptive.flatten()}")
