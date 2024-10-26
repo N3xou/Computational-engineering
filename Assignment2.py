@@ -209,24 +209,89 @@ print(f"\nAfter normalization:\n{df_norm.sum(0)}")
 def naive_bayes(sent, langs, df):
     """Returns the most probable language of a sentence"""
 
-    # Convert frequencies to log-probabilities and convert back to DataFrame
-    df_log = pd.DataFrame(np.log(df + 1e-100), columns=df.columns, index=df.index)
+    # Try working with log-probabilities.
+    # to prevent taking log(0) you can e.g. add a very small amount (1e-100)
+    # to each tabulated frequency.
+    df_log = np.log(df + 1e-100)
 
-    # Normalize the sentence by removing spaces, punctuations, and making it lowercase
-    sent = ''.join(filter(str.isalpha, sent)).lower()
+    # normalize the sentence: remove spaces and punctuations, take lower case
+    sent = ''.join(char for char in sent if char.isalnum()).lower()
 
     log_probs = {}
     for lang in langs:
-        # Initialize log probability for the language
         log_prob = 0
-        for char in sent:
-            if char in df_log.columns:
-                log_prob += df_log.loc[lang, char]  # Sum log-probabilities for characters in the sentence
-            else:
-                # Small penalty for characters not in the language model
-                log_prob += np.log(1e-100)
+        for letter in sent:
+            if letter in df_log.index:
+                log_prob += df_log[lang].get(letter, np.log(1e-100))
+
         log_probs[lang] = log_prob
 
-    # Sort languages by descending probability
-    probs = dict(sorted(log_probs.items(), key=lambda x: x[1], reverse=True))
+    # TODO compute language probabilitie and order from most to least probable
+    max_log_prob = max(log_probs.values())
+    probs = {lang: np.exp(log_prob - max_log_prob) for lang, log_prob in log_probs.items()}
+
+    total_prob = sum(probs.values())
+    probs = {lang: prob / total_prob for lang, prob in probs.items()}
+
     return probs
+
+
+sentences = [
+    "No dejes para mañana lo que puedas hacer hoy.",
+    "Przed wyruszeniem w drogę należy zebrać drużynę.",
+    "Żeby zrozumieć rekurencję, należy najpierw zrozumieć rekurencję.",
+    "Si vale la pena hacerlo vale la pena hacerlo bien.",
+    "Experience is what you get when you didn't get what you wanted.",
+    "Należy prowokować intelekt, nie intelektualistów.",
+]
+
+for sent in sentences:
+    print(f"Sentence: '{sent}'")
+    probs = naive_bayes(sent, langs, df_norm)
+
+    # Get the most probable language by finding the max probability
+    most_probable_lang = max(probs, key=probs.get)
+    print(f"Predicted Language: {most_probable_lang}")
+
+    # Print probabilities for additional context
+
+    print("\n")
+
+
+#
+# The true polynomial relation:
+# y(x) = 1 + 2x -5x^2 + 4x^3
+#
+# TODO: write down the proper coefficients
+#
+
+
+def powers_of_X(X, degree):
+    powers = np.arange(degree + 1).reshape(1, -1)
+    return X ** powers
+
+
+def compute_polynomial(X, Theta):
+    XP = powers_of_X(X, len(Theta) - 1)  # len(Theta) x N
+    Y = XP @ Theta
+    return Y.reshape(-1, 1)
+
+
+true_poly_theta = np.array([1.0, 2.0, -5, 4])
+
+
+
+def make_dataset(N, theta=true_poly_theta, sigma=0.1):
+    """ Sample a dataset """
+    X = np.random.uniform(size=(N, 1))
+    Y_clean = compute_polynomial(X, theta)
+    Y = Y_clean + np.random.randn(N, 1) * sigma
+    return X, Y
+
+
+train_data = make_dataset(30)
+XX = np.linspace(0, 1, 100).reshape(-1, 1)
+YY = compute_polynomial(XX, true_poly_theta)
+plt.scatter(train_data[0], train_data[1], label="train data", color="r")
+plt.plot(XX, compute_polynomial(XX, true_poly_theta), label="ground truth")
+plt.legend(loc="upper left")
