@@ -582,3 +582,206 @@ for test_point in [[0.0, 0.0], [1.0, 1.0], [0.5, 1.0], [1.0, 0.5]]:
     plt.xlim(0, 2)
     plt.ylim(0, 3)
     plt.legend()
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+
+    def rosenbrock(x):
+        """Rosenbrock's function."""
+        return (1 - x[0]) ** 2 + 100 * (x[1] - x[0] ** 2) ** 2
+
+
+    def rosenbrock_grad(x):
+        """Gradient of Rosenbrock's function."""
+        dfdx0 = -2 * (1 - x[0]) - 400 * x[0] * (x[1] - x[0] ** 2)
+        dfdx1 = 200 * (x[1] - x[0] ** 2)
+        return np.array([dfdx0, dfdx1])
+
+
+    def rosenbrock_hessian(x):
+        """Hessian of Rosenbrock's function."""
+        d2fdx0dx0 = 2 - 400 * (x[1] - 3 * x[0] ** 2)
+        d2fdx0dx1 = -400 * x[0]
+        d2fdx1dx1 = 200
+        return np.array([[d2fdx0dx0, d2fdx0dx1], [d2fdx0dx1, d2fdx1dx1]])
+
+
+    def Newton(f, Theta0, alpha, stop_tolerance=1e-10, max_steps=1000000):
+        """Newton-Raphson method with simple line search."""
+        Theta = Theta0
+        history = [Theta0]
+        fun_evals = 0
+
+        for step in range(int(max_steps)):  # Convert max_steps to an integer
+            val, grad = f(Theta)[:2]
+            hessian = f(Theta)[2]
+
+            # Compute the Newton direction
+            try:
+                direction = -np.linalg.inv(hessian).dot(grad)
+            except np.linalg.LinAlgError:
+                # If Hessian is singular, fall back to gradient descent
+                direction = -grad
+
+            # Line search: backtracking
+            t = 1.0
+            while f(Theta + t * direction)[0] > val + 1e-4 * t * grad.dot(direction):
+                t *= 0.5
+                fun_evals += 1
+
+            # Update the parameters
+            Theta = Theta + t * direction
+            history.append(Theta)
+
+            # Check convergence
+            if np.linalg.norm(grad) < stop_tolerance:
+                break
+
+        return Theta, history, fun_evals
+
+
+    # Initial point
+    x_start = np.array([-1.2, 1.0])
+
+    # Run the Newton method
+    Xopt, Xhist, fun_evals = Newton(
+        lambda x: (rosenbrock(x), rosenbrock_grad(x), rosenbrock_hessian(x)),
+        x_start, alpha=1e-0, stop_tolerance=1e-10, max_steps=1e6
+    )
+
+    Xhist_ = np.array([[x[0], x[1]] for x in Xhist])
+
+    print(
+        "Found optimum at %s in %d steps (%d function evals) (true minimum is at [1,1])"
+        % (Xopt, len(Xhist), fun_evals)
+    )
+
+    # Plotting
+    MX, MY = np.meshgrid(np.linspace(-1, 2, 100), np.linspace(-1, 2, 100))
+    Z = np.array([MX.flatten(), MY.flatten()]).T
+    VR = np.array([rosenbrock(z) for z in Z]).reshape(MX.shape)
+    plt.contour(MX, MY, VR, levels=100)
+    plt.plot(Xhist_[:, 0], Xhist_[:, 1], "*-k")
+    plt.title("Newton-Raphson Path on Rosenbrock Function")
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.colorbar(label='Rosenbrock Function Value')
+    plt.show()
+
+
+iris = datasets.load_iris()
+print("Features: ", iris.feature_names)
+print("Targets: ", iris.target_names)
+petal_length = iris.data[:, iris.feature_names.index("petal length (cm)")].reshape(-1, 1)
+petal_width = iris.data[:, iris.feature_names.index("petal width (cm)")].reshape(-1, 1)
+
+# Extract the petal_length and petal_width of versicolors and virginicas
+
+IrisX = np.hstack([np.ones_like(petal_length), petal_length, petal_width])
+IrisX = IrisX[iris.target != 0, :]
+
+# Set versicolor=0 and virginia=1
+IrisY = (iris.target[iris.target != 0] - 1).reshape(-1, 1).astype(np.float64)
+
+plt.scatter(IrisX[:, 1], IrisX[:, 2], c=IrisY, cmap="spring")
+plt.xlabel("petal_length")
+plt.ylabel("petal_width")
+
+def logreg_loss(Theta, X, Y):
+    #
+    # Write a logistic regression cost suitable for use with fmin_l_bfgs
+    #
+
+    # reshape Theta into a column vector - lBFGS gives us a flat array
+    ThetaR = Theta.reshape(X.shape[1], 1)
+    predictions = sigmoid(X @ ThetaR)
+    nll = -np.mean(Y * np.log(predictions + 1e-9) + (1 - Y) * np.log(1 - predictions + 1e-9))
+    grad = (X.T @ (predictions - Y)) / X.shape[0]
+
+    # reshape grad into the shape of Theta, for fmin_l_bfsgb to work
+    return nll, grad.reshape(Theta.shape)
+
+
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+
+Theta0 = np.zeros((3, ))
+
+#
+# Call a solver
+#
+ThetaOpt = sopt.fmin_l_bfgs_b(
+    lambda Theta: logreg_loss(Theta, IrisX, IrisY), np.array(Theta0)
+)[0]
+
+
+#
+# Now plot the found separation line
+#
+
+plt.scatter(IrisX[:, 1], IrisX[:, 2], c=IrisY.ravel(), cmap="spring")
+plt.xlabel("petal_length")
+plt.ylabel("petal_width")
+pl_min, pl_max = plt.xlim()
+pl = np.linspace(pl_min, pl_max, 1000)
+plt.plot(pl, -(ThetaOpt[0] + ThetaOpt[1] * pl) / ThetaOpt[2])
+plt.xlim(pl_min, pl_max)
+
+alphas = [0, 1e-2, 1.0]
+n_iter = []
+
+def logreg_loss_with_reg(Theta, X, Y, alpha=0.):
+    #
+    # Copy the logistic regression code and extend it with L2 regularization
+    #
+    ThetaR = Theta.reshape(X.shape[1], 1)
+
+    predictions = sigmoid(X @ ThetaR)
+    nll = -np.mean(Y * np.log(predictions + 1e-9) + (1 - Y) * np.log(1 - predictions + 1e-9))
+
+    reg_term = (alpha / 2) * np.sum(ThetaR[1:] ** 2)
+
+    total_loss = nll + reg_term
+
+    grad = (X.T @ (predictions - Y)) / X.shape[0]
+    grad[1:] += alpha * ThetaR[1:] / X.shape[0]
+
+    return total_loss, grad.reshape(Theta.shape)
+
+
+mesh_x, mesh_y = np.meshgrid(
+    np.linspace(IrisX[:, 1].min(), IrisX[:, 1].max(), 100),
+    np.linspace(IrisX[:, 2].min(), IrisX[:, 2].max(), 100),
+)
+mesh_data = np.hstack([np.ones(mesh_x.reshape(-1, 1).shape), mesh_x.reshape(-1, 1), mesh_y.reshape(-1, 1)])
+
+for alpha in alphas:
+  Theta0 = np.zeros((3, ))
+
+  #
+  # Call a solver
+  #
+  ThetaOpt, _, dic = sopt.fmin_l_bfgs_b(
+      lambda Theta: logreg_loss_with_reg(Theta, IrisX, IrisY, alpha=alpha), np.array(Theta0)
+  )
+  n_iter.append(dic['nit'])
+
+  #
+  # Now calculate probabilities for mesh_data
+  #
+  probs = sigmoid(mesh_data @ ThetaOpt.reshape(-1, 1))
+
+  #
+  # Plot the decision boundary
+  #
+  plt.contourf(mesh_x, mesh_y, probs.reshape(mesh_x.shape), cmap='spring')
+  plt.scatter(IrisX[:, 1], IrisX[:, 2], c=IrisY.ravel(), cmap="spring", linewidths=1, edgecolors='black')
+  plt.colorbar()
+  plt.xlabel("petal_length")
+  plt.ylabel("petal_width")
+  pl_min, pl_max = plt.xlim()
+  plt.title(fr'$\alpha$ = {alpha:.2e}')
+  plt.xlim(pl_min, pl_max)
+  plt.show()
