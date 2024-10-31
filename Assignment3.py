@@ -122,3 +122,38 @@ def entropy(series):
     return ent
 
 mushroom_df.apply(entropy)
+
+
+def entropy(series):
+    """Compute the entropy of a pandas Series."""
+    counts = series.value_counts(normalize=True)
+    return -np.sum(counts * np.log2(counts))
+
+
+def cond_entropy(df, X, Y):
+    """Compute the conditional entropy H(Y|X) in dataframe df.
+
+    Args:
+        df: a dataframe
+        X: the name of the conditioning column
+        Y: the name of the column whose entropy we wish to compute
+    """
+    # Group by X and calculate entropy of Y for each group
+    grouped = df.groupby(X)[Y]
+
+    # Compute weighted average of entropies
+    conditional_entropy = grouped.apply(entropy).multiply(grouped.size() / len(df)).sum()
+
+    return conditional_entropy
+
+
+# Load the dataset (assuming `mushroom_df` is already loaded)
+# Compute conditional entropy H(target | C) for each column C
+target_column = 'class'  # Assuming the target is the 'class' column (edible/poisonous label)
+conditional_entropies = {col: cond_entropy(mushroom_df, col, target_column)
+                         for col in mushroom_df.columns if col != target_column}
+
+# Sort columns by conditional entropy
+sorted_cond_entropies = pd.Series(conditional_entropies).sort_values()
+print("Conditional Entropies (H(Y|X)):\n", sorted_cond_entropies)
+print("Most informative variable:", sorted_cond_entropies.idxmin())
