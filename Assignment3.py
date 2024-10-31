@@ -113,3 +113,12 @@ german_df = pd.read_csv(
     header=None,
     sep=" ",
 )
+
+## start
+
+def entropy(series):
+    counts = series.value_counts(normalize=True)
+    ent = -np.sum(counts * np.log2(counts))
+    return ent
+
+mushroom_df.apply(entropy)
