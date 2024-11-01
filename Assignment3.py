@@ -157,3 +157,22 @@ conditional_entropies = {col: cond_entropy(mushroom_df, col, target_column)
 sorted_cond_entropies = pd.Series(conditional_entropies).sort_values()
 print("Conditional Entropies (H(Y|X)):\n", sorted_cond_entropies)
 print("Most informative variable:", sorted_cond_entropies.idxmin())
+
+
+from sklearn.feature_selection import mutual_info_classif
+
+mushroom_df['ID'] = range(len(mushroom_df))
+
+
+# Target column
+X = mushroom_df[['ID']]  # Only using the ID column
+y = mushroom_df[target_column]  # Assuming `target_column` is set correctly
+
+# Compute mutual information
+mi_id_target = mutual_info_classif(X, y, discrete_features=True)[0]
+print("Mutual Information between ID and Target:", mi_id_target)
+
+
+Please fill the purity measures below.
+
+Verify the correctness by plotting the purity values if a two-class set with given class probabilities
