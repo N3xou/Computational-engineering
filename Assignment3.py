@@ -199,3 +199,27 @@ def mean_err_rate(counts):
     probabilities = counts / np.sum(counts)
     return 1 - np.max(probabilities)
 
+
+# Varying probability for a two-class system
+prob_class_1 = np.linspace(0, 1, 100)
+entropy_vals = []
+gini_vals = []
+mean_err_vals = []
+
+# Calculate each purity measure across different probabilities
+for p in prob_class_1:
+    counts = np.array([p, 1 - p]) * 100  # Simulate counts based on probabilities
+    entropy_vals.append(entropy(counts))
+    gini_vals.append(gini(counts))
+    mean_err_vals.append(mean_err_rate(counts))
+
+# Plot the results
+plt.figure(figsize=(10, 6))
+plt.plot(prob_class_1, entropy_vals, label="Entropy")
+plt.plot(prob_class_1, gini_vals, label="Gini Impurity")
+plt.plot(prob_class_1, mean_err_vals, label="Mean Error Rate")
+plt.xlabel("Probability of Class 1")
+plt.ylabel("Purity Measure")
+plt.title("Purity Measures for a Two-Class System")
+plt.legend()
+plt.show()
