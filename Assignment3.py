@@ -176,3 +176,26 @@ print("Mutual Information between ID and Target:", mi_id_target)
 Please fill the purity measures below.
 
 Verify the correctness by plotting the purity values if a two-class set with given class probabilities
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+def entropy(counts):
+    """Calculate the entropy of a distribution given class counts."""
+    probabilities = counts / np.sum(counts)
+    return -np.sum(probabilities * np.log2(probabilities + 1e-10))  # Avoid log(0)
+
+
+def gini(counts):
+    """Calculate the Gini impurity of a distribution given class counts."""
+    probabilities = counts / np.sum(counts)
+    return 1 - np.sum(probabilities ** 2)
+
+
+def mean_err_rate(counts):
+    """Calculate the mean error rate of a distribution given class counts."""
+    probabilities = counts / np.sum(counts)
+    return 1 - np.max(probabilities)
+
