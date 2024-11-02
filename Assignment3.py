@@ -223,3 +223,23 @@ plt.ylabel("Purity Measure")
 plt.title("Purity Measures for a Two-Class System")
 plt.legend()
 plt.show()
+
+
+class CategoricalMultivalueSplit(AbstractSplit):
+    def build_subtrees(self, df, subtree_kwargs):
+        self.subtrees = {}
+        for group_name, group_df in df.groupby(self.attr):
+            child = Tree(group_df, **subtree_kwargs)
+            self.subtrees[group_name] = child
+
+    def __call__(self, x):
+        # Return the subtree for the given example
+        return TODO
+
+    def iter_subtrees(self):
+        return self.subtrees.values()
+
+    def add_to_graphviz(self, dot, parent, print_info):
+        for split_name, child in self.subtrees.items():
+            child.add_to_graphviz(dot, print_info)
+            dot.edge(f"{id(parent)}", f"{id(child)}", label=f"{split_name}")
