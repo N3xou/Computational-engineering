@@ -222,4 +222,4 @@ plt.xlabel("Probability of Class 1")
 plt.ylabel("Purity Measure")
 plt.title("Purity Measures for a Two-Class System")
 plt.legend()
-plt.show()
+plt.show(
