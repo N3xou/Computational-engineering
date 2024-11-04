@@ -173,11 +173,6 @@ mi_id_target = mutual_info_classif(X, y, discrete_features=True)[0]
 print("Mutual Information between ID and Target:", mi_id_target)
 
 
-Please fill the purity measures below.
-
-Verify the correctness by plotting the purity values if a two-class set with given class probabilities
-
-
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -243,3 +238,27 @@ class CategoricalMultivalueSplit(AbstractSplit):
         for split_name, child in self.subtrees.items():
             child.add_to_graphviz(dot, print_info)
             dot.edge(f"{id(parent)}", f"{id(child)}", label=f"{split_name}")
+
+def get_categorical_split_and_purity(
+    df, parent_purity, purity_fun, attr, normalize_by_split_entropy=False
+):
+    """Return a multivariate split and its purity.
+    Args:
+        df: a dataframe
+        parent_purity: purity of the parent node
+        purity_fun: function to compute the purity
+        attr: attribute over whihc to split the dataframe
+        normalize_by_split_entropy: if True, divide the purity gain by the split
+            entropy (to compute https://en.wikipedia.org/wiki/Information_gain_ratio)
+
+    Returns:
+        pair of (split, purity_gain)
+    """
+    split = CategoricalMultivalueSplit(attr)
+    # Compute the purity after the split
+    mean_child_purity= TODO
+    # Note: when purity is measured by entropy, this corresponds to Mutual Information
+    purity_gain = parent_purity - mean_child_purity
+    if normalize_by_split_entropy:
+        purity_gain /= entropy(df[attr].value_counts())
+    return split, purity_gain
