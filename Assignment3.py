@@ -265,13 +265,13 @@ def get_categorical_split_and_purity(
 
 
 def get_split(df, criterion="infogain", nattrs=None):
-    """Find best split on the given dataframe.
+    """Find the best split on the given dataframe.
 
-    Attributes:
-        - df: the dataframe of smaples in the node to be split
-        - criterion: spluis selection criterion
+    Args:
+        - df: the dataframe of samples in the node to be split
+        - criterion: split selection criterion
         - nattrs: flag to randomly limit the number of considered attributes. Used
-          in random tree impementations.
+          in random tree implementations.
 
     Returns:
         - If no split exists, return None.
@@ -282,44 +282,48 @@ def get_split(df, criterion="infogain", nattrs=None):
     target_value_counts = df["target"].value_counts()
     if len(target_value_counts) == 1:
         return None
+
     # TermCrit2: No split is possible
-    #    First get a list of attributes that can be split
-    #    (i.e. attribute is not target and atribute can take more than one value)
-    #
-    #    The list of attributes on which we can split will also be handy for building random trees.
-    possible_splits = TODO  # possible_splits must be a list
+    # Get a list of attributes we can split on
+    possible_splits = [
+        col for col in df.columns
+        if col != "target" and df[col].nunique() > 1
+    ]
     assert "target" not in possible_splits
-    #    Terminate early if none are possivle
+
+    # Terminate early if no splits are possible
     if not possible_splits:
         return None
 
-    # Get the base purity measure and the purity function
+    # Set the purity function based on the criterion
     if criterion in ["infogain", "infogain_ratio"]:
         purity_fun = entropy
-    elif criterion in ["mean_err_rate"]:
+    elif criterion == "mean_err_rate":
         purity_fun = mean_err_rate
-    elif criterion in ["gini"]:
+    elif criterion == "gini":
         purity_fun = gini
     else:
         raise Exception("Unknown criterion: " + criterion)
+
+    # Calculate the base purity of the target
     base_purity = purity_fun(target_value_counts)
 
     best_purity_gain = -1
     best_split = None
 
-    # Random Forest support
-    # restrict possible_splits to a few radomly selected attributes
-    # if nattrs is not None:
-    #     possible_splits = TODO
+    # Random Forest support: randomly select attributes if nattrs is specified
+    if nattrs is not None:
+        possible_splits = random.sample(possible_splits, min(nattrs, len(possible_splits)))
 
     for attr in possible_splits:
         if np.issubdtype(df[attr].dtype, np.number):
-            # Handling of numerical attributes will be defined later, in a manner
-            # similar to categorical ones
-            split_sel_fun = get_numrical_split_and_purity
+            # Assuming a function `get_numerical_split_and_purity` is defined for numerical attributes
+            split_sel_fun = get_numerical_split_and_purity
         else:
+            # Assuming a function `get_categorical_split_and_purity` is defined for categorical attributes
             split_sel_fun = get_categorical_split_and_purity
 
+        # Calculate split and purity gain for the attribute
         split, purity_gain = split_sel_fun(
             df,
             base_purity,
@@ -328,7 +332,9 @@ def get_split(df, criterion="infogain", nattrs=None):
             normalize_by_split_entropy=criterion.endswith("ratio"),
         )
 
+        # Update the best split if the current one has a higher purity gain
         if purity_gain > best_purity_gain:
             best_purity_gain = purity_gain
             best_split = split
+
     return best_split
