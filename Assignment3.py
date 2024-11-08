@@ -351,3 +351,81 @@ def get_split(df, criterion="infogain", nattrs=None):
             best_split = split
 
     return best_split
+class Tree:
+    def __init__(self, df, **kwargs):
+        super().__init__()
+        # Assert that there are no missing values,
+        # TODO: remove this for bonus problem #2.4
+        assert not df.isnull().values.any()
+
+        # Technicality:
+        # We need to let subtrees know about all targets to properly color nodes
+        # We pass this in subtree arguments.
+        if "all_targets" not in kwargs:
+            kwargs["all_targets"] = sorted(df["target"].unique())
+        # Save keyword arguments to build subtrees
+        kwargs_orig = dict(kwargs)
+
+        # Get kwargs we know about, remaining ones will be used for splitting
+        self.all_targets = kwargs.pop("all_targets")
+
+        # Save debug info for visualization
+        # Debugging tip: contents of self.info are printed in tree visualizations!
+        self.counts = df["target"].value_counts()
+        self.info = {
+            "num_samples": len(df),
+            "entropy": entropy(self.counts),
+            "gini": gini(self.counts),
+        }
+
+        self.split = get_split(df, **kwargs)
+        if self.split:
+            self.split.build_subtrees(df, kwargs_orig)
+
+    def get_target_distribution(self, sample):
+        """Return the target distribution at the leaf node for the given sample."""
+        if self.split is None:
+            # Leaf node, return class distribution
+            return self.counts
+        else:
+            # Internal node, descend into the appropriate subtree
+            subtree = self.split(sample)
+            return subtree.get_target_distribution(sample)
+
+    def classify(self, sample):
+        """Classify a sample by returning the most common target class."""
+        target_distribution = self.get_target_distribution(sample)
+        return target_distribution.idxmax()
+
+    def draw(self, print_info=True):
+        dot = graphviz.Digraph()
+        self.add_to_graphviz(dot, print_info)
+        return dot
+
+    def add_to_graphviz(self, dot, print_info):
+        freqs = self.counts / self.counts.sum()
+        freqs = dict(freqs)
+        colors = []
+        freqs_info = []
+        for i, c in enumerate(self.all_targets):
+            freq = freqs.get(c, 0.0)
+            if freq > 0:
+                colors.append(f"{i % 9 + 1};{freq}")
+                freqs_info.append(f"{c}:{freq:.2f}")
+        colors = ":".join(colors)
+        labels = [" ".join(freqs_info)]
+        if print_info:
+            for k, v in self.info.items():
+                labels.append(f"{k} = {v}")
+        if self.split:
+            labels.append(f"split by: {self.split.attr}")
+        dot.node(
+            f"{id(self)}",
+            label="\n".join(labels),
+            shape="box",
+            style="striped",
+            fillcolor=colors,
+            colorscheme="set19",
+        )
+        if self.split:
+            self.split.add_to_graphviz(dot, self, print_info)
