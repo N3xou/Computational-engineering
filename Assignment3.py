@@ -178,21 +178,40 @@ import matplotlib.pyplot as plt
 
 
 def entropy(counts):
-    """Calculate the entropy of a distribution given class counts."""
-    probabilities = counts / np.sum(counts)
-    return -np.sum(probabilities * np.log2(probabilities + 1e-10))  # Avoid log(0)
-
+    total = sum(counts)
+    probabilities = [count / total for count in counts if count > 0]
+    return -sum(p * np.log2(p) for p in probabilities)
 
 def gini(counts):
-    """Calculate the Gini impurity of a distribution given class counts."""
-    probabilities = counts / np.sum(counts)
-    return 1 - np.sum(probabilities ** 2)
-
+    total = sum(counts)
+    probabilities = [count / total for count in counts]
+    return 1 - sum(p ** 2 for p in probabilities)
 
 def mean_err_rate(counts):
-    """Calculate the mean error rate of a distribution given class counts."""
-    probabilities = counts / np.sum(counts)
-    return 1 - np.max(probabilities)
+    total = sum(counts)
+    probabilities = [count / total for count in counts]
+    return 1 - max(probabilities)
+
+probabilities = np.linspace(0, 1, 100)
+entropies = []
+ginis = []
+mean_err_rates = []
+
+for p in probabilities:
+    counts = [p, 1 - p]
+    entropies.append(entropy(counts))
+    ginis.append(gini(counts))
+    mean_err_rates.append(mean_err_rate(counts))
+
+plt.figure(figsize=(12, 6))
+plt.plot(probabilities, entropies, label="Entropy", color="blue")
+plt.plot(probabilities, ginis, label="Gini Index", color="green")
+plt.plot(probabilities, mean_err_rates, label="Mean Error Rate", color="red")
+plt.xlabel("Probability of class 1")
+plt.ylabel("Purity Measure")
+plt.title("Purity Measures for a Two-Class Set")
+plt.legend()
+plt.show()
 
 
 # Varying probability for a two-class system
