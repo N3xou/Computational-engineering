@@ -279,67 +279,65 @@ def get_categorical_split_and_purity(
         purity_gain /= entropy(df[attr].value_counts())
     return split, purity_gain
 
+class NumericalSplit(AbstractSplit):
+    def __init__(self, attr, threshold):
+        super().__init__(attr)
+        self.threshold = threshold
 
+    def build_subtrees(self, df, subtree_kwargs):
+        self.subtrees = {}
+        left_split = df[df[self.attr] <= self.threshold]
+        right_split = df[df[self.attr] > self.threshold]
+        self.subtrees['<='] = Tree(left_split, **subtree_kwargs)
+        self.subtrees['>'] = Tree(right_split, **subtree_kwargs)
+
+    def __call__(self, x):
+        return self.subtrees['<='] if x[self.attr] <= self.threshold else self.subtrees['>']
+
+    def iter_subtrees(self):
+        return self.subtrees.values()
+
+    def add_to_graphviz(self, dot, parent, print_info):
+        for split_name, child in self.subtrees.items():
+            child.add_to_graphviz(dot, print_info)
+            dot.edge(f"{id(parent)}", f"{id(child)}", label=f"{split_name} {self.threshold}")
+
+    def __str__(self):
+        return f"NumericalSplit({self.attr} <= {self.threshold})"
 def get_split(df, criterion="infogain", nattrs=None):
-    """Find the best split on the given dataframe.
-
-    Args:
-        - df: the dataframe of samples in the node to be split
-        - criterion: split selection criterion
-        - nattrs: flag to randomly limit the number of considered attributes. Used
-          in random tree implementations.
-
-    Returns:
-        - If no split exists, return None.
-        - If a split exists, return an instance of a subclass of AbstractSplit
-    """
-    # Implement termination criteria:
-    # TermCrit1: Node is pure
+    """Find best split on the given dataframe."""
     target_value_counts = df["target"].value_counts()
     if len(target_value_counts) == 1:
         return None
 
-    # TermCrit2: No split is possible
-    # Get a list of attributes we can split on
-    possible_splits = [
-        col for col in df.columns
-        if col != "target" and df[col].nunique() > 1
-    ]
+    possible_splits = [col for col in df.columns if col != "target" and len(df[col].unique()) > 1]
     assert "target" not in possible_splits
 
-    # Terminate early if no splits are possible
     if not possible_splits:
         return None
 
-    # Set the purity function based on the criterion
     if criterion in ["infogain", "infogain_ratio"]:
         purity_fun = entropy
-    elif criterion == "mean_err_rate":
+    elif criterion in ["mean_err_rate"]:
         purity_fun = mean_err_rate
-    elif criterion == "gini":
+    elif criterion in ["gini"]:
         purity_fun = gini
     else:
         raise Exception("Unknown criterion: " + criterion)
 
-    # Calculate the base purity of the target
     base_purity = purity_fun(target_value_counts)
-
     best_purity_gain = -1
     best_split = None
 
-    # Random Forest support: randomly select attributes if nattrs is specified
     if nattrs is not None:
-        possible_splits = random.sample(possible_splits, min(nattrs, len(possible_splits)))
+        possible_splits = np.random.choice(possible_splits, nattrs, replace=False)
 
     for attr in possible_splits:
         if np.issubdtype(df[attr].dtype, np.number):
-            # Assuming a function `get_numerical_split_and_purity` is defined for numerical attributes
             split_sel_fun = get_numerical_split_and_purity
         else:
-            # Assuming a function `get_categorical_split_and_purity` is defined for categorical attributes
             split_sel_fun = get_categorical_split_and_purity
 
-        # Calculate split and purity gain for the attribute
         split, purity_gain = split_sel_fun(
             df,
             base_purity,
@@ -348,7 +346,6 @@ def get_split(df, criterion="infogain", nattrs=None):
             normalize_by_split_entropy=criterion.endswith("ratio"),
         )
 
-        # Update the best split if the current one has a higher purity gain
         if purity_gain > best_purity_gain:
             best_purity_gain = purity_gain
             best_split = split
