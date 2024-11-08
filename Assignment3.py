@@ -756,3 +756,206 @@ def reduced_error_pruning(tree, train_df, test_df):
 reduced_error_pruning(vote_tree, vote_train_df, vote_test_df)
 
 vote_tree.draw()
+
+import pandas as pd
+import numpy as np
+import sklearn.model_selection
+from sklearn.metrics import accuracy_score
+import matplotlib.pyplot as plt
+
+# Split the dataset into training and test sets
+german_train_df, german_test_df = sklearn.model_selection.train_test_split(german_df, test_size=0.3)
+
+def random_forest_tree(df, nattrs=None):
+    """Zbuduj drzewo z losowym wyborem atrybutów."""
+    return Tree(df, criterion="infogain", nattrs=nattrs)
+
+def build_random_forest(train_df, test_df, n_trees=20, nattrs=None):
+    forest = []
+    oob_error_rates = []
+    test_error_rates = []
+    accuracy_rf = []
+
+    for i in range(n_trees):
+        # Bootstrap sampling (with replacement)
+        bootstrap_sample = train_df.sample(frac=1, replace=True)
+        oob_sample = train_df.loc[~train_df.index.isin(bootstrap_sample.index)]
+
+        # Build the decision tree
+        tree = random_forest_tree(bootstrap_sample, nattrs=nattrs)
+        forest.append(tree)
+
+        # Initialize OOB and test error rates
+        oob_error_rate = None
+        test_error_rate = None
+
+        # Out-of-bag (OOB) error calculation
+        if len(oob_sample) > 0:
+            oob_preds = []
+            for _, row in oob_sample.iterrows():
+                try:
+                    oob_preds.append(tree.classify(row))
+                except KeyError as e:
+                    print(f"Error classifying OOB sample: {row}, error: {e}")
+                    oob_preds.append(None)
+
+            valid_oob_preds = [pred for pred in oob_preds if pred is not None]
+            valid_oob_targets = oob_sample.loc[~oob_sample.index.isin([i for i, pred in enumerate(oob_preds) if pred is None]), 'target']
+
+            if len(valid_oob_preds) == len(valid_oob_targets):
+                oob_error_rate = 1 - accuracy_score(valid_oob_targets, valid_oob_preds)
+                oob_error_rates.append(oob_error_rate)
+
+        # Test error calculation for each tree
+        test_preds = []
+        for _, row in test_df.iterrows():
+            try:
+                test_preds.append(tree.classify(row))
+            except KeyError as e:
+                print(f"Error classifying test sample: {row}, error: {e}")
+                test_preds.append(None)
+
+        valid_test_preds = [pred for pred in test_preds if pred is not None]
+        valid_test_targets = test_df.loc[~test_df.index.isin([i for i, pred in enumerate(test_preds) if pred is None]), 'target']
+
+        if len(valid_test_preds) == len(valid_test_targets):
+            test_error_rate = 1 - accuracy_score(valid_test_targets, valid_test_preds)
+            test_error_rates.append(test_error_rate)
+        else:
+            print(f"Inconsistent test samples: {len(valid_test_preds)} predictions vs {len(valid_test_targets)} targets")
+
+        # Random Forest accuracy calculation by majority voting
+        rf_preds = []
+        for _, row in test_df.iterrows():
+            tree_preds = []
+            for tree in forest:
+                try:
+                    tree_preds.append(tree.classify(row))
+                except KeyError as e:
+                    tree_preds.append(None)
+
+            valid_tree_preds = [pred for pred in tree_preds if pred is not None]
+            if valid_tree_preds:
+                majority_vote = np.round(np.mean(valid_tree_preds))
+                rf_preds.append(majority_vote)
+            else:
+                rf_preds.append(None)
+
+        valid_rf_preds = [pred for pred in rf_preds if pred is not None]
+        valid_rf_targets = test_df.loc[~test_df.index.isin([i for i, pred in enumerate(rf_preds) if pred is None]), 'target']
+
+        if len(valid_rf_preds) == len(valid_rf_targets):
+            rf_accuracy = accuracy_score(valid_rf_targets, valid_rf_preds)
+            accuracy_rf.append(rf_accuracy)
+            print(f"Tree {i+1}: OOB Error = {oob_error_rate}, Test Error = {test_error_rate}, RF Accuracy = {rf_accuracy}")
+        else:
+            print(f"Inconsistent RF samples: {len(valid_rf_preds)} predictions vs {len(valid_rf_targets)} targets")
+
+    # Plot the accuracy of Random Forest vs Number of Trees
+    plt.plot(range(1, len(accuracy_rf)+1), accuracy_rf, label="Random Forest Accuracy")
+    plt.xlabel("Number of Trees")
+    plt.ylabel("Accuracy")
+    plt.title("Random Forest Accuracy vs Number of Trees")
+    plt.legend()
+    plt.show()
+
+    return forest, oob_error_rates, test_error_rates, accuracy_rf
+
+# Build and evaluate the Random Forest
+forest, oob_errors, test_errors, accuracy_rf = build_random_forest(german_train_df, german_test_df, n_trees=20, nattrs=3)
+
+# Display the final results
+if len(oob_errors) > 0:
+    print(f"Final Forest OOB Error: {oob_errors[-1]}")
+if len(test_errors) > 0:
+    print(f"Final Forest Test Error: {test_errors[-1]}")
+if len(accuracy_rf) > 0:
+    print(f"Final Forest Accuracy: {accuracy_rf[-1]}")
+
+    import numpy as np
+    import pandas as pd
+    from sklearn.model_selection import train_test_split
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.metrics import accuracy_score
+    from sklearn.preprocessing import OneHotEncoder
+    import matplotlib.pyplot as plt
+
+    # Load the German credit dataset (categorical version)
+    url = "https://archive.ics.uci.edu/ml/machine-learning-databases/statlog/german/german.data"
+    columns = [f"A{i}" for i in range(1, 21)] + ["target"]
+    german_df = pd.read_csv(url, sep=' ', header=None, names=columns)
+
+    # One-hot encode categorical features
+    X = german_df.iloc[:, :-1]
+    y = german_df["target"]
+    y = np.where(y == 1, 1, 0)  # Convert target to binary (1 = good credit, 0 = bad credit)
+
+    encoder = OneHotEncoder(sparse_output=False, drop='first')
+    X_encoded = encoder.fit_transform(X)
+
+    # Split the data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(X_encoded, y, test_size=0.3, random_state=42)
+
+    # Step 1: Train a random forest
+    n_trees = 100
+    forest = RandomForestClassifier(n_estimators=n_trees, max_features='sqrt', random_state=42)
+    forest.fit(X_train, y_train)
+
+    # Step 2: Calculate Total Purity Increase (Gini Importance) for each variable
+    gini_importances = forest.feature_importances_
+
+
+    # Step 3: Calculate the decrease in performance when replacing attributes with random data
+    def calculate_performance_decrease(forest, X_test, y_test, feature_idx):
+        X_test_copy = X_test.copy()
+        np.random.shuffle(X_test_copy[:, feature_idx])  # Shuffle the values of the specified feature
+        shuffled_accuracy = accuracy_score(y_test, forest.predict(X_test_copy))
+        original_accuracy = accuracy_score(y_test, forest.predict(X_test))
+        return original_accuracy - shuffled_accuracy
+
+
+    performance_decrease_importances = []
+    for i in range(X_train.shape[1]):
+        decrease = calculate_performance_decrease(forest, X_test, y_test, i)
+        performance_decrease_importances.append(decrease)
+
+    # Convert to numpy arrays for easier handling
+    performance_decrease_importances = np.array(performance_decrease_importances)
+
+    # Step 4: Display results
+    feature_names = encoder.get_feature_names_out(input_features=X.columns)
+
+    # Create a DataFrame to display importances
+    importance_df = pd.DataFrame({
+        'Feature': feature_names,
+        'Gini Importance': gini_importances,
+        'Performance Decrease': performance_decrease_importances
+    })
+
+    # Sort by Gini importance and select the top 20 features
+    top_features = importance_df.sort_values(by='Gini Importance', ascending=False).head(20)
+
+    print("Top 20 Variable Importance Analysis using Random Forest")
+    print(top_features)
+
+    # Plot the variable importances for better visualization
+    plt.figure(figsize=(10, 8))
+
+    # Plot Gini Importances
+    plt.subplot(2, 1, 1)
+    plt.barh(top_features['Feature'], top_features['Gini Importance'], color='skyblue')
+    plt.title('Top 20 Feature Importance (Total Purity Increase)')
+    plt.xlabel('Importance')
+    plt.ylabel('Feature')
+    plt.gca().invert_yaxis()
+
+    # Plot Performance Decrease
+    plt.subplot(2, 1, 2)
+    plt.barh(top_features['Feature'], top_features['Performance Decrease'], color='salmon')
+    plt.title('Top 20 Feature Importance (Performance Decrease)')
+    plt.xlabel('Decrease in Accuracy')
+    plt.ylabel('Feature')
+    plt.gca().invert_yaxis()
+
+    plt.tight_layout()
+    plt.show()
