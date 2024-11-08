@@ -429,3 +429,285 @@ class Tree:
         )
         if self.split:
             self.split.add_to_graphviz(dot, self, print_info)
+
+            class NumericalSplit(AbstractSplit):
+                def __init__(self, attr, th):
+                    super(NumericalSplit, self).__init__(attr)
+                    self.th = th
+
+                def build_subtrees(self, df, subtree_kwargs):
+                    self.subtrees = (
+                        Tree(df[df[self.attr] <= self.th], **subtree_kwargs),
+                        Tree(df[df[self.attr] > self.th], **subtree_kwargs),
+                    )
+
+                def __call__(self, x):
+                    # Return the subtree for the data sample `x`
+                    if x[self.attr] <= self.th:
+                        return self.subtrees[0]
+                    else:
+                        return self.subtrees[1]
+
+                def __str__(self):
+                    return f"NumericalSplit: {self.attr} <= {self.th}"
+
+                def iter_subtrees(self):
+                    return self.subtrees
+
+                def add_to_graphviz(self, dot, parent, print_info):
+                    self.subtrees[0].add_to_graphviz(dot, print_info)
+                    dot.edge(f"{id(parent)}", f"{id(self.subtrees[0])}", label=f"<= {self.th:.2f}")
+                    self.subtrees[1].add_to_graphviz(dot, print_info)
+                    dot.edge(f"{id(parent)}", f"{id(self.subtrees[1])}", label=f"> {self.th:.2f}")
+
+            def get_numrical_split_and_purity(
+                    df, parent_purity, purity_fun, attr, normalize_by_split_entropy=False
+            ):
+                """Find the best split threshold and compute the average purity after a split."""
+                attr_df = df[[attr, "target"]].sort_values(attr)
+                targets = attr_df["target"]
+                values = attr_df[attr]
+                right_counts = targets.value_counts()
+                left_counts = right_counts * 0
+
+                best_split = None  # Will be None, or NumericalSplit(attr, best_threshold)
+                best_purity_gain = -1
+                N = len(attr_df)
+
+                for row_i in range(N - 1):
+                    row_target = targets.iloc[row_i]
+                    attribute_value = values.iloc[row_i]
+                    next_attribute_value = values.iloc[row_i + 1]
+                    split_threshold = (attribute_value + next_attribute_value) / 2.0
+
+                    # Update left and right counts
+                    left_counts[row_target] += 1
+                    right_counts[row_target] -= 1
+
+                    if attribute_value == next_attribute_value:
+                        continue
+
+                    left_purity = purity_fun(left_counts)
+                    right_purity = purity_fun(right_counts)
+                    mean_child_purity = (left_purity * left_counts.sum() + right_purity * right_counts.sum()) / N
+                    purity_gain = parent_purity - mean_child_purity
+
+                    if purity_gain > best_purity_gain:
+                        best_purity_gain = purity_gain
+                        best_split = NumericalSplit(attr, split_threshold)
+
+                return best_split, best_purity_gain
+iris2d = iris_df[["petal_length", "petal_width", "target"]]
+
+iris2d_tree = Tree(iris2d, criterion="infogain")
+iris2d_tree.draw()
+
+mesh_x, mesh_y = np.meshgrid(
+    np.linspace(iris2d.petal_length.min(), iris2d.petal_length.max(), 100),
+    np.linspace(iris2d.petal_width.min(), iris2d.petal_width.max(), 100),
+)
+
+mesh_data = np.hstack([mesh_x.reshape(-1, 1), mesh_y.reshape(-1, 1)])
+mesh_data = pd.DataFrame(mesh_data, columns=iris2d.columns[:-1])
+
+preds = np.empty((len(mesh_data),))
+
+for criterion in ["infogain", "infogain_ratio", "gini", "mean_err_rate"]:
+    iris2d_tree = Tree(iris2d, criterion=criterion)
+    for i, (_, r) in enumerate(mesh_data.iterrows()):
+        preds[i] = iris2d_tree.all_targets.index(iris2d_tree.classify(r))
+
+    plt.figure()
+    plt.title(f"Iris2D decision boundary for {criterion}.")
+    plt.contourf(
+        mesh_x, mesh_y, preds.reshape(mesh_x.shape), cmap="Set1", vmin=0, vmax=7
+    )
+    sns.scatterplot(
+        x="petal_length", y="petal_width", hue="target", data=iris_df, palette="Set1",
+    )
+    plt.show()
+
+import pandas as pd
+import numpy as np
+import graphviz
+from collections import defaultdict
+
+def entropy(counts):
+    total = counts.sum()
+    prob = counts / total
+    return -np.sum(prob * np.log2(prob + 1e-9))
+
+def gini(counts):
+    total = counts.sum()
+    prob = counts / total
+    return 1 - np.sum(prob**2)
+
+def mean_err_rate(counts):
+    total = counts.sum()
+    prob = counts / total
+    return 1 - prob.max()
+
+class AbstractSplit:
+    def __init__(self, attr):
+        self.attr = attr
+
+    def build_subtrees(self, df, subtree_kwargs):
+        raise NotImplementedError
+
+    def __call__(self, sample):
+        raise NotImplementedError
+
+    def iter_subtrees(self):
+        raise NotImplementedError
+
+    def add_to_graphviz(self, dot, parent, print_info):
+        raise NotImplementedError
+
+class NumericalSplit(AbstractSplit):
+    def __init__(self, attr, th):
+        super().__init__(attr)
+        self.th = th
+
+    def build_subtrees(self, df, subtree_kwargs):
+        self.subtrees = (
+            Tree(df[df[self.attr] <= self.th], **subtree_kwargs),
+            Tree(df[df[self.attr] > self.th], **subtree_kwargs),
+        )
+
+    def __call__(self, x):
+        return self.subtrees[0] if x[self.attr] <= self.th else self.subtrees[1]
+
+    def __str__(self):
+        return f"NumericalSplit: {self.attr} <= {self.th}"
+
+    def iter_subtrees(self):
+        return self.subtrees
+
+    def add_to_graphviz(self, dot, parent, print_info):
+        self.subtrees[0].add_to_graphviz(dot, print_info)
+        dot.edge(f"{id(parent)}", f"{id(self.subtrees[0])}", label=f"<= {self.th:.2f}")
+        self.subtrees[1].add_to_graphviz(dot, print_info)
+        dot.edge(f"{id(parent)}", f"{id(self.subtrees[1])}", label=f"> {self.th:.2f}")
+
+
+class Tree:
+    def __init__(self, df, **kwargs):
+        super().__init__()
+
+        if "all_targets" not in kwargs:
+            kwargs["all_targets"] = sorted(df["target"].unique())
+
+        kwargs_orig = dict(kwargs)
+        self.all_targets = kwargs.pop("all_targets")
+        self.counts = df["target"].value_counts()
+        self.info = {
+            "num_samples": len(df),
+            "entropy": entropy(self.counts),
+            "gini": gini(self.counts),
+        }
+
+        self.split = get_split(df, **kwargs)
+        if self.split:
+            self.split.build_subtrees(df, kwargs_orig)
+
+    def get_target_distribution(self, sample):
+        if self.split is None:
+            return self.counts
+        else:
+            if pd.isnull(sample[self.split.attr]):
+                left_counts = self.split.subtrees[0].counts.sum()
+                right_counts = self.split.subtrees[1].counts.sum()
+                total_counts = left_counts + right_counts
+
+                left_prob = left_counts / total_counts
+                right_prob = right_counts / total_counts
+
+                left_dist = self.split.subtrees[0].get_target_distribution(sample)
+                right_dist = self.split.subtrees[1].get_target_distribution(sample)
+
+                return left_prob * left_dist + right_prob * right_dist
+            else:
+                return self.split(sample).get_target_distribution(sample)
+
+    def classify(self, sample):
+        return self.get_target_distribution(sample).idxmax()
+
+    def draw(self, print_info=True):
+        dot = graphviz.Digraph()
+        self.add_to_graphviz(dot, print_info)
+        return dot
+
+    def add_to_graphviz(self, dot, print_info):
+        freqs = self.counts / self.counts.sum()
+        freqs = dict(freqs)
+        colors = []
+        freqs_info = []
+        for i, c in enumerate(self.all_targets):
+            freq = freqs.get(c, 0.0)
+            if freq > 0:
+                colors.append(f"{i%9 + 1};{freq}")
+                freqs_info.append(f"{c}:{freq:.2f}")
+        colors = ":".join(colors)
+        labels = [" ".join(freqs_info)]
+        if print_info:
+            for k, v in self.info.items():
+                labels.append(f"{k} = {v}")
+        if self.split:
+            labels.append(f"split by: {self.split.attr}")
+        dot.node(
+            f"{id(self)}",
+            label="\n".join(labels),
+            shape="box",
+            style="striped",
+            fillcolor=colors,
+            colorscheme="set19",
+        )
+        if self.split:
+            self.split.add_to_graphviz(dot, self, print_info)
+
+def get_split(df, criterion="infogain", nattrs=None):
+    target_value_counts = df["target"].value_counts()
+    if len(target_value_counts) == 1:
+        return None
+
+    possible_splits = [col for col in df.columns if col != "target" and len(df[col].unique()) > 1]
+    assert "target" not in possible_splits
+
+    if not possible_splits:
+        return None
+
+    if criterion in ["infogain", "infogain_ratio"]:
+        purity_fun = entropy
+    elif criterion in ["mean_err_rate"]:
+        purity_fun = mean_err_rate
+    elif criterion in ["gini"]:
+        purity_fun = gini
+    else:
+        raise Exception("Unknown criterion: " + criterion)
+
+    base_purity = purity_fun(target_value_counts)
+    best_purity_gain = -1
+    best_split = None
+
+    if nattrs is not None:
+        possible_splits = np.random.choice(possible_splits, nattrs, replace=False)
+
+    for attr in possible_splits:
+        if np.issubdtype(df[attr].dtype, np.number):
+            split_sel_fun = get_numerical_split_and_purity
+        else:
+            split_sel_fun = get_categorical_split_and_purity
+
+        split, purity_gain = split_sel_fun(
+            df,
+            base_purity,
+            purity_fun,
+            attr,
+            normalize_by_split_entropy=criterion.endswith("ratio"),
+        )
+
+        if purity_gain > best_purity_gain:
+            best_purity_gain = purity_gain
+            best_split = split
+
+    return best_split
