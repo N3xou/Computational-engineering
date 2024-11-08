@@ -711,3 +711,48 @@ def get_split(df, criterion="infogain", nattrs=None):
             best_split = split
 
     return best_split
+
+import sklearn.model_selection
+import numpy as np
+
+vote_train_df, vote_test_df = sklearn.model_selection.train_test_split(
+    vote_df, test_size=0.3, random_state=42
+)
+
+vote_tree = Tree(vote_train_df, criterion="infogain")
+
+def error_rate(tree, data):
+    correct = 0
+    for _, sample in data.iterrows():
+        if tree.classify(sample) == sample["target"]:
+            correct += 1
+    return 1 - correct / len(data)
+
+def reduced_error_pruning(tree, train_df, test_df):
+    initial_error = error_rate(tree, test_df)
+    print(f"Initial Error Rate: {initial_error}")
+
+    nodes_to_prune = [tree]
+
+    while nodes_to_prune:
+        node = nodes_to_prune.pop()
+
+        if node.split:
+            for subtree in node.split.iter_subtrees():
+                nodes_to_prune.append(subtree)
+
+        original_split = node.split
+        node.split = None
+
+        new_error = error_rate(tree, test_df)
+
+        if new_error > initial_error:
+            node.split = original_split
+        else:
+            initial_error = new_error
+
+    print(f"Pruned Error Rate: {initial_error}")
+
+reduced_error_pruning(vote_tree, vote_train_df, vote_test_df)
+
+vote_tree.draw()
