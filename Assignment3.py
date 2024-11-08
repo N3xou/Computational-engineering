@@ -247,8 +247,7 @@ class CategoricalMultivalueSplit(AbstractSplit):
             self.subtrees[group_name] = child
 
     def __call__(self, x):
-        # Return the subtree for the given example
-        return TODO
+        return self.subtrees[x[self.attr]]
 
     def iter_subtrees(self):
         return self.subtrees.values()
@@ -262,21 +261,19 @@ def get_categorical_split_and_purity(
     df, parent_purity, purity_fun, attr, normalize_by_split_entropy=False
 ):
     """Return a multivariate split and its purity.
-    Args:
-        df: a dataframe
-        parent_purity: purity of the parent node
-        purity_fun: function to compute the purity
-        attr: attribute over whihc to split the dataframe
-        normalize_by_split_entropy: if True, divide the purity gain by the split
-            entropy (to compute https://en.wikipedia.org/wiki/Information_gain_ratio)
-
-    Returns:
-        pair of (split, purity_gain)
     """
     split = CategoricalMultivalueSplit(attr)
-    # Compute the purity after the split
-    mean_child_purity= TODO
-    # Note: when purity is measured by entropy, this corresponds to Mutual Information
+    # cal pur
+    mean_child_purity = 0
+    total_instances = len(df)
+
+    # calc pur for child
+    for group_name, group_df in df.groupby(attr):
+        prob_group = len(group_df) / total_instances
+        child_purity = purity_fun(group_df['target'].value_counts())
+        mean_child_purity += prob_group * child_purity
+
+    # pur gain
     purity_gain = parent_purity - mean_child_purity
     if normalize_by_split_entropy:
         purity_gain /= entropy(df[attr].value_counts())
