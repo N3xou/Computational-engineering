@@ -75,3 +75,19 @@ class SmallNet:
 
         return O2, loss
 
+ # TODO Problem 1:
+# Set by hand the weight values to solve the XOR problem
+
+net = SmallNet(2, 2, dtype=np.float64)
+net.W1 = np.array([[10, -10], [-10, 10]], dtype=np.float64)
+net.b1 = np.array([-5, -5], dtype=np.float64)
+net.W2 = np.array([[10, 10]], dtype=np.float64)
+net.b2 = np.array([-5], dtype=np.float64)
+
+# Hint: since we use the logistic sigmoid activation, the weights may need to
+# be fairly large
+
+
+predictions, loss = net.forward(X, Y, do_backward=True)
+for x, p in zip(X, predictions):
+    print(f"XORnet({x}) = {p[0]}")
