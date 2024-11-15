@@ -550,3 +550,110 @@ for x, p in zip(X3, predictions):
         if loss < 0.1:
             print("Successfully trained the network!")
             break
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+def sigmoid_grad(x):
+    return sigmoid(x) * (1 - sigmoid(x))
+
+def relu(x):
+    return np.maximum(0, x)
+
+def relu_grad(x):
+    return (x > 0).astype(x.dtype)
+
+class VariableDepthNet:
+    def __init__(self, in_features, hidden_dim, num_hidden_layers, activation='relu', dtype=np.float64):
+        self.num_hidden_layers = num_hidden_layers
+        self.activation = activation
+
+        # Initialize the activation functions
+        if activation == 'relu':
+            self.activation_func = relu
+            self.activation_grad = relu_grad
+        elif activation == 'sigmoid':
+            self.activation_func = sigmoid
+            self.activation_grad = sigmoid_grad
+        else:
+            raise ValueError("Unsupported activation function.")
+
+        # Initialize the weights and biases for the hidden layers
+        self.weights = []
+        self.biases = []
+        for i in range(num_hidden_layers):
+            if i == 0:
+                self.weights.append(np.random.normal(0, 0.5, (hidden_dim, in_features)).astype(dtype))
+            else:
+                self.weights.append(np.random.normal(0, 0.5, (hidden_dim, hidden_dim)).astype(dtype))
+            self.biases.append(np.random.normal(0, 0.5, (hidden_dim,)).astype(dtype))
+
+        # Initialize weights and biases for the output layer
+        self.weights.append(np.random.normal(0, 0.5, (1, hidden_dim)).astype(dtype))
+        self.biases.append(np.random.normal(0, 0.5, (1,)).astype(dtype))
+
+    def forward(self, X, Y=None, do_backward=False):
+        self.outputs = []
+        input_to_layer = X
+
+        # Forward pass through hidden layers
+        for i in range(self.num_hidden_layers):
+            A = np.dot(input_to_layer, self.weights[i].T) + self.biases[i]
+            O = self.activation_func(A)
+            self.outputs.append((A, O))
+            input_to_layer = O
+
+        # Forward pass through the output layer
+        A_output = np.dot(input_to_layer, self.weights[-1].T) + self.biases[-1]
+        O_output = sigmoid(A_output)
+        self.outputs.append((A_output, O_output))
+
+        if Y is not None:
+            # Cross-entropy loss
+            loss = -Y * np.log(O_output) - (1 - Y) * np.log(1 - O_output)
+            loss = loss.sum() / X.shape[0]
+        else:
+            loss = np.nan
+
+        if do_backward:
+            # Backpropagation for the output layer
+            A_grad = O_output - Y
+            self.biases_grad = [A_grad.sum(0)]
+            self.weights_grad = [np.dot(A_grad.T, self.outputs[-2][1])]
+
+            # Backpropagation through hidden layers
+            for i in range(self.num_hidden_layers - 1, -1, -1):
+                A, O = self.outputs[i]
+                if i == self.num_hidden_layers - 1:
+                    O_grad = np.dot(A_grad, self.weights[i + 1])
+                else:
+                    O_grad = np.dot(A_grad, self.weights_grad[0])
+                A_grad = O_grad * self.activation_grad(A)
+
+                self.biases_grad.insert(0, A_grad.sum(0))
+                if i == 0:
+                    self.weights_grad.insert(0, np.dot(A_grad.T, X))
+                else:
+                    self.weights_grad.insert(0, np.dot(A_grad.T, self.outputs[i - 1][1]))
+
+        return O_output, loss
+
+    def update_params(self, learning_rate):
+        for i in range(len(self.weights)):
+            self.weights[i] -= learning_rate * self.weights_grad[i]
+            self.biases[i] -= learning_rate * self.biases_grad[i]
+
+# Training the VariableDepthNet
+def train_variable_depth_net(hidden_dim, num_hidden_layers, activation='relu', learning_rate=0.1, iterations=10000):
+    net = VariableDepthNet(3, hidden_dim, num_hidden_layers, activation=activation, dtype=np.float64)
+    for i in range(iterations):
+        _, loss = net.forward(X3, Y3, do_backward=True)
+        if (i % 1000) == 0:
+            print(f"Step {i}, Loss: {loss:.4f}")
+        net.update_params(learning_rate)
+
+    predictions, _ = net.forward(X3)
+    print(f"Final Predictions: {predictions}")
+    return net
+
+# Experiment with different number of hidden layers and activation functions
+trained_net = train_variable_depth_net(hidden_dim=10, num_hidden_layers=3, activation='relu')
