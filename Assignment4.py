@@ -657,3 +657,79 @@ def train_variable_depth_net(hidden_dim, num_hidden_layers, activation='relu', l
 
 # Experiment with different number of hidden layers and activation functions
 trained_net = train_variable_depth_net(hidden_dim=10, num_hidden_layers=3, activation='relu')
+
+def relu(x):
+    return np.maximum(0, x)
+
+def relu_grad(x):
+    return (x > 0).astype(float)
+
+class FeedbackAlignmentNet(VariableDepthNet):
+    def __init__(self, in_features, hidden_dim, num_hidden_layers, activation='relu', dtype=np.float64):
+        super().__init__(in_features, hidden_dim, num_hidden_layers, activation, dtype)
+
+        # Initialize random fixed backward weights with correct shapes
+        self.fixed_backward_weights = []
+        for i in range(self.num_hidden_layers):
+            self.fixed_backward_weights.append(np.random.normal(0, 0.5, (hidden_dim, hidden_dim)).astype(dtype))
+        self.fixed_backward_weights.append(np.random.normal(0, 0.5, (1, hidden_dim)).astype(dtype))  # For the output layer
+
+        # Initialize gradients for weights and biases
+        self.reset_gradients()
+
+    def reset_gradients(self):
+        """Reset gradients for weights and biases to zero."""
+        self.weights_grad = [np.zeros_like(w) for w in self.weights]
+        self.biases_grad = [np.zeros_like(b) for b in self.biases]
+
+    def backward(self, Y):
+        # Start with the gradient at the output layer
+        A_grad = self.outputs[-1][1] - Y  # Gradient for the output layer
+
+        # Update weights and biases gradients for the output layer
+        self.biases_grad[-1] = A_grad.sum(axis=0)
+        self.weights_grad[-1] = np.dot(A_grad.T, self.outputs[-2][1])
+
+        # Backpropagate through hidden layers
+        for i in range(self.num_hidden_layers - 1, -1, -1):
+            A, O = self.outputs[i]
+
+            # Use fixed backward weights to propagate the gradient
+            if i == self.num_hidden_layers - 1:
+                O_grad = np.dot(A_grad, self.fixed_backward_weights[i + 1])  # Shape should match (batch_size, hidden_dim)
+            else:
+                O_grad = np.dot(A_grad, self.fixed_backward_weights[i])  # Shape should match (batch_size, hidden_dim)
+
+            A_grad = O_grad * self.activation_grad(A)  # Element-wise multiplication
+
+            # Update gradients for weights and biases in the current layer
+            self.biases_grad[i] = A_grad.sum(axis=0)
+            if i == 0:
+                self.weights_grad[i] = np.dot(A_grad.T, X3)  # For the first layer, use input X3
+            else:
+                self.weights_grad[i] = np.dot(A_grad.T, self.outputs[i - 1][1])
+
+    def forward(self, X, Y=None, do_backward=False):
+        O_output, loss = super().forward(X, Y, do_backward=False)
+
+        if do_backward:
+            self.reset_gradients()  # Reset gradients before each backward pass
+            self.backward(Y)
+
+        return O_output, loss
+
+# Training the Feedback Alignment Network
+def train_feedback_alignment_net(hidden_dim, num_hidden_layers, activation='relu', learning_rate=0.1, iterations=10000):
+    net = FeedbackAlignmentNet(3, hidden_dim, num_hidden_layers, activation=activation, dtype=np.float64)
+    for i in range(iterations):
+        _, loss = net.forward(X3, Y3, do_backward=True)
+        if (i % 1000) == 0:
+            print(f"Step {i}, Loss: {loss:.4f}")
+        net.update_params(learning_rate)
+
+    predictions, _ = net.forward(X3)
+    print(f"Final Predictions: {predictions}")
+    return net
+
+# Assume X3 and Y3 are the 3D XOR inputs and labels
+trained_feedback_net = train_feedback_alignment_net(hidden_dim=10, num_hidden_layers=3, activation='relu')
