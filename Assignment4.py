@@ -366,3 +366,88 @@ def train_3D_XOR(hidden_dim, X, Y, num_steps=100000, alpha=0.1):
 predictions = train_3D_XOR(10, X3, Y3)
 for x, p in zip(X3, predictions):
     print(f"XORnet({x}) = {p[0]}")
+
+
+    def relu(x):
+        return np.maximum(0, x)
+
+
+    # Define the derivative of ReLU for backpropagation
+    def relu_grad(x):
+        return (x > 0).astype(x.dtype)
+
+
+    class ReLUNet:
+        def __init__(self, in_features, num_hidden, dtype=np.float64):
+            self.W1 = np.zeros((num_hidden, in_features), dtype=dtype)
+            self.b1 = np.zeros((num_hidden,), dtype=dtype)
+            self.W2 = np.zeros((1, num_hidden), dtype=dtype)
+            self.b2 = np.zeros((1,), dtype=dtype)
+            self.init_params()
+
+        def init_params(self):
+            # Initialize parameters to random values
+            self.W1 = np.random.normal(0, 0.5, self.W1.shape)
+            self.b1 = np.random.normal(0, 0.5, self.b1.shape)
+            self.W2 = np.random.normal(0, 0.5, self.W2.shape)
+            self.b2 = np.random.normal(0, 0.5, self.b2.shape)
+
+        def reset_gradients(self):
+            self.W1_grad = np.zeros_like(self.W1)
+            self.b1_grad = np.zeros_like(self.b1)
+            self.W2_grad = np.zeros_like(self.W2)
+            self.b2_grad = np.zeros_like(self.b2)
+
+        def forward(self, X, Y=None, do_backward=False):
+            # First layer with ReLU activation
+            A1 = np.dot(X, self.W1.T) + self.b1
+            O1 = relu(A1)
+
+            # Second layer with Sigmoid activation
+            A2 = np.dot(O1, self.W2.T) + self.b2
+            O2 = sigmoid(A2)
+
+            if Y is not None:
+                # Cross-entropy loss
+                loss = -Y * np.log(O2) - (1 - Y) * np.log(1 - O2)
+                loss = loss.sum() / X.shape[0]
+            else:
+                loss = np.nan
+
+            if do_backward:
+                # Backpropagation for output layer
+                A2_grad = O2 - Y
+                self.b2_grad = A2_grad.sum(0)
+                self.W2_grad = np.dot(A2_grad.T, O1)
+
+                # Backpropagation for the first layer (ReLU)
+                O1_grad = np.dot(A2_grad, self.W2)
+                A1_grad = O1_grad * relu_grad(A1)
+                self.b1_grad = A1_grad.sum(0)
+                self.W1_grad = np.dot(A1_grad.T, X)
+
+            return O2, loss
+
+
+    # Train the ReLUNet on the 3D XOR problem
+    X3 = np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1],
+                   [1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 1, 1]], dtype=np.float64)
+    Y3 = np.array([[0], [1], [1], [0], [1], [0], [0], [1]], dtype=np.float64)
+
+
+    def train_network(hidden_dim, learning_rate=0.1, iterations=10000):
+        net = ReLUNet(3, hidden_dim, dtype=np.float64)
+        for i in range(iterations):
+            _, loss = net.forward(X3, Y3, do_backward=True)
+            if (i % 1000) == 0:
+                print(f"Step {i}, Loss: {loss:.4f}")
+            for param_name in ["W1", "b1", "W2", "b2"]:
+                param = getattr(net, param_name)
+                param[:] = param - learning_rate * getattr(net, param_name + "_grad")
+        predictions, _ = net.forward(X3)
+        print(f"Final Predictions: {predictions}")
+        return net
+
+
+    # Experiment with different hidden layer sizes to find a reliable architecture
+    trained_net = train_network(hidden_dim=10)
