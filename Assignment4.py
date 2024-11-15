@@ -451,3 +451,102 @@ for x, p in zip(X3, predictions):
 
     # Experiment with different hidden layer sizes to find a reliable architecture
     trained_net = train_network(hidden_dim=10)
+
+
+    def generate_3d_xor():
+        X = np.array([
+            [0, 0, 0],
+            [0, 0, 1],
+            [0, 1, 0],
+            [0, 1, 1],
+            [1, 0, 0],
+            [1, 0, 1],
+            [1, 1, 0],
+            [1, 1, 1]
+        ], dtype=np.float32)
+
+        Y = np.array([[0], [1], [1], [0], [1], [0], [0], [1]], dtype=np.float32)
+        return X, Y
+
+
+    class SmallNetWithTwoHiddenLayers:
+        def __init__(self, in_features, num_hidden1, num_hidden2, dtype=np.float32):
+            # Inicjalizacja wag i biasów dla pierwszej warstwy ukrytej
+            self.W1 = np.random.normal(0, 0.5, (num_hidden1, in_features)).astype(dtype)
+            self.b1 = np.random.normal(0, 0.5, (num_hidden1,)).astype(dtype)
+
+            # Inicjalizacja wag i biasów dla drugiej warstwy ukrytej
+            self.W2 = np.random.normal(0, 0.5, (num_hidden2, num_hidden1)).astype(dtype)
+            self.b2 = np.random.normal(0, 0.5, (num_hidden2,)).astype(dtype)
+
+            # Inicjalizacja wag i biasów dla warstwy wyjściowej
+            self.W3 = np.random.normal(0, 0.5, (1, num_hidden2)).astype(dtype)
+            self.b3 = np.random.normal(0, 0.5, (1,)).astype(dtype)
+
+        def forward(self, X, Y=None, do_backward=False):
+            # Pierwsza warstwa ukryta z ReLU
+            A1 = X @ self.W1.T + self.b1
+            O1 = relu(A1)
+
+            # Druga warstwa ukryta z ReLU
+            A2 = O1 @ self.W2.T + self.b2
+            O2 = relu(A2)
+
+            # Warstwa wyjściowa z sigmoid
+            A3 = O2 @ self.W3.T + self.b3
+            O3 = sigmoid(A3)
+
+            # Obliczanie straty (cross-entropy loss)
+            if Y is not None:
+                loss = -Y * np.log(O3) - (1 - Y) * np.log(1 - O3)
+                loss = loss.sum() / X.shape[0]
+            else:
+                loss = np.nan
+
+            # Backward pass: obliczanie gradientów
+            if do_backward:
+                A3_grad = O3 - Y
+                self.b3_grad = A3_grad.sum(axis=0) / X.shape[0]
+                self.W3_grad = (A3_grad.T @ O2) / X.shape[0]
+
+                O2_grad = A3_grad @ self.W3
+                O2_grad = O2_grad * (A2 > 0)  # Pochodna ReLU dla drugiej warstwy
+                self.b2_grad = O2_grad.sum(axis=0) / X.shape[0]
+                self.W2_grad = (O2_grad.T @ O1) / X.shape[0]
+
+                O1_grad = O2_grad @ self.W2
+                O1_grad = O1_grad * (A1 > 0)  # Pochodna ReLU dla pierwszej warstwy
+                self.b1_grad = O1_grad.sum(axis=0) / X.shape[0]
+                self.W1_grad = (O1_grad.T @ X) / X.shape[0]
+
+            return O3, loss
+
+        # Aktualizacja parametrów gradient descent
+        def update_parameters(self, alpha):
+            self.W1 -= alpha * self.W1_grad
+            self.b1 -= alpha * self.b1_grad
+            self.W2 -= alpha * self.W2_grad
+            self.b2 -= alpha * self.b2_grad
+            self.W3 -= alpha * self.W3_grad
+            self.b3 -= alpha * self.b3_grad
+
+
+    learning_rate = 0.1
+    hidden_dim1 = 10  # Rozmiar pierwszej warstwy ukrytej
+    hidden_dim2 = 5  # Rozmiar drugiej warstwy ukrytej
+    net = SmallNetWithTwoHiddenLayers(3, hidden_dim1, hidden_dim2, dtype=np.float64)
+
+    X3, Y3 = generate_3d_xor()  # Generowanie danych 3D XOR
+
+    # Trening sieci
+    for i in range(100000):
+        _, loss = net.forward(X3, Y3, do_backward=True)
+        net.update_parameters(learning_rate)
+
+        if i % 5000 == 0:
+            print(f"after {i} steps loss={loss}")
+
+        # Sprawdzenie sukcesu
+        if loss < 0.1:
+            print("Successfully trained the network!")
+            break
