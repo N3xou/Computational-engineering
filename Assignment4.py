@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+# assignment4
 
 # Let's define a XOR dataset
 
