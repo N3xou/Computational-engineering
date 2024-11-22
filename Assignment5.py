@@ -144,3 +144,342 @@ torchvision.datasets.MNIST.resources = [
         "ec29112dd5afa0611ce80d1b7f02629c",
     ),
 ]
+#!pip install idx2numpy
+
+#!mkdir -p ./data/MNIST/raw
+#!wget -O ./data/MNIST/raw/train-images-idx3-ubyte.gz https://ossci-datasets.s3.amazonaws.com/mnist/train-images-idx3-ubyte.gz
+#!wget -O ./data/MNIST/raw/train-labels-idx1-ubyte.gz https://ossci-datasets.s3.amazonaws.com/mnist/train-labels-idx1-ubyte.gz
+#!wget -O ./data/MNIST/raw/t10k-images-idx3-ubyte.gz https://ossci-datasets.s3.amazonaws.com/mnist/t10k-images-idx3-ubyte.gz
+#!wget -O ./data/MNIST/raw/t10k-labels-idx1-ubyte.gz https://ossci-datasets.s3.amazonaws.com/mnist/t10k-labels-idx1-ubyte.gz
+
+#!gunzip ./data/MNIST/raw/*.gz
+
+
+import idx2numpy
+import torch
+from torch.utils.data import DataLoader, TensorDataset
+from torchvision.transforms import Normalize, Compose
+
+def load_data(image_path, label_path):
+    images = idx2numpy.convert_from_file(image_path).astype('float32')
+    labels = idx2numpy.convert_from_file(label_path).astype('int64')
+    return torch.tensor(images).unsqueeze(1), torch.tensor(labels)
+
+train_images_path = './data/MNIST/raw/train-images-idx3-ubyte'
+train_labels_path = './data/MNIST/raw/train-labels-idx1-ubyte'
+test_images_path = './data/MNIST/raw/t10k-images-idx3-ubyte'
+test_labels_path = './data/MNIST/raw/t10k-labels-idx1-ubyte'
+
+train_images, train_labels = load_data(train_images_path, train_labels_path)
+test_images, test_labels = load_data(test_images_path, test_labels_path)
+
+normalize = Normalize((0.1307,), (0.3081,))
+train_images = normalize(train_images)
+test_images = normalize(test_images)
+
+train_data = TensorDataset(train_images[:50000], train_labels[:50000])
+valid_data = TensorDataset(train_images[50000:], train_labels[50000:])
+test_data = TensorDataset(test_images, test_labels)
+
+batch_size = 128
+mnist_loaders = {
+    "train": DataLoader(train_data, batch_size=batch_size, shuffle=True),
+    "valid": DataLoader(valid_data, batch_size=batch_size, shuffle=False),
+    "test": DataLoader(test_data, batch_size=batch_size, shuffle=False),
+}
+
+def SGD(
+    model,
+    data_loaders,
+    alpha=1e-4,
+    epsilon=0.0,
+    decay=0.0,
+    num_epochs=1,
+    max_num_epochs=np.nan,
+    patience_expansion=1.5,
+    log_every=100,
+    device="cpu",
+):
+    # Put the model in train mode, and move to the evaluation device.
+    model.train()
+    model.to(device)
+    for data_loader in data_loaders.values():
+        if isinstance(data_loader, InMemDataLoader):
+            data_loader.to(device)
+
+    # Initialize momentum variables
+    velocities = [torch.zeros_like(p, device=device) for p in model.parameters()]
+
+    iter_ = 0
+    epoch = 0
+    best_params = None
+    best_val_err = np.inf
+    history = {"train_losses": [], "train_errs": [], "val_errs": []}
+    print("Training the model!")
+    print("Interrupt at any time to evaluate the best validation model so far.")
+    try:
+        tstart = time.time()
+        siter = iter_
+        while epoch < num_epochs:
+            model.train()
+            epoch += 1
+            if epoch > max_num_epochs:
+                break
+
+            # Learning rate control (schedule per epoch)
+            # Example: Exponential decay
+            alpha_epoch = alpha * (0.95 ** epoch)
+
+            for x, y in data_loaders["train"]:
+                x = x.to(device)
+                y = y.to(device)
+                iter_ += 1
+                out = model(x)
+                loss = model.loss(out, y)
+                loss.backward()
+                _, predictions = out.max(dim=1)
+                batch_err_rate = (predictions != y).sum().item() / out.size(0)
+
+                history["train_losses"].append(loss.item())
+                history["train_errs"].append(batch_err_rate)
+
+                with torch.no_grad():
+                    for (name, p), v in zip(model.named_parameters(), velocities):
+                        if "weight" in name:
+                            # Weight decay (L2 regularization)
+                            p.grad += decay * p
+
+                        # Learning rate schedule per iteration
+                        # Example: Cosine annealing based on iteration count
+                        alpha_iter = alpha_epoch * (0.5 * (1 + np.cos(np.pi * iter_ / (num_epochs * len(data_loaders["train"])))))
+
+                        # Momentum schedule (if needed)
+                        # Example: Linearly increase epsilon up to a max value during the first few epochs
+                        epsilon_iter = min(epsilon, epsilon * iter_ / (len(data_loaders["train"]) * 5))
+
+                        # Velocity updates for momentum
+                        v[...] = epsilon_iter * v - alpha_iter * p.grad
+
+                        # Update parameters
+                        p += v
+
+                        # Zero gradients for the next iteration
+                        p.grad.zero_()
+
+                if iter_ % log_every == 0:
+                    num_iter = iter_ - siter + 1
+                    print(
+                        "Minibatch {0: >6}  | loss {1: >5.2f} | err rate {2: >5.2f}%, steps/s {3: >5.2f}".format(
+                            iter_,
+                            loss.item(),
+                            batch_err_rate * 100.0,
+                            num_iter / (time.time() - tstart),
+                        )
+                    )
+                    tstart = time.time()
+
+            val_err_rate = compute_error_rate(model, data_loaders["valid"], device)
+            history["val_errs"].append((iter_, val_err_rate))
+
+            if val_err_rate < best_val_err:
+                # Adjust num of epochs
+                num_epochs = int(np.maximum(num_epochs, epoch * patience_expansion + 1))
+                best_epoch = epoch
+                best_val_err = val_err_rate
+                best_params = [p.detach().cpu() for p in model.parameters()]
+            clear_output(True)
+            m = "After epoch {0: >2} | valid err rate: {1: >5.2f}% | doing {2: >3} epochs".format(
+                epoch, val_err_rate * 100.0, num_epochs
+            )
+            print("{0}\n{1}\n{0}".format("-" * len(m), m))
+
+    except KeyboardInterrupt:
+        pass
+
+    if best_params is not None:
+        print("\nLoading best params on validation set (epoch %d)\n" % (best_epoch))
+        with torch.no_grad():
+            for param, best_param in zip(model.parameters(), best_params):
+                param[...] = best_param
+    plot_history(history)
+
+    class Model(nn.Module):
+        def __init__(self, *args, **kwargs):
+            super(Model, self).__init__()
+            self.layers = nn.Sequential(*args, **kwargs)
+
+        def forward(self, X):
+            X = X.view(X.size(0), -1)
+            return self.layers.forward(X)
+
+        def loss(self, Out, Targets):
+            return F.cross_entropy(Out, Targets)
+
+    model = Model(nn.Linear(28 * 28, 10))
+
+    with torch.no_grad():
+        # Initialize parameters
+        for name, p in model.named_parameters():
+            if "weight" in name:
+                p.normal_(0, 0.5)
+            elif "bias" in name:
+                p.zero_()
+            else:
+                raise ValueError('Unknown parameter name "%s"' % name)
+
+    # On GPU enabled devices set device='cuda' else set device='cpu'
+    t_start = time.time()
+    SGD(model, mnist_loaders, alpha=1e-1, max_num_epochs=30, device="cuda")
+
+    test_err_rate = compute_error_rate(model, mnist_loaders["test"])
+    m = (
+        f"Test error rate: {test_err_rate * 100.0:.3f}%, "
+        f"training took {time.time() - t_start:.0f}s."
+    )
+    print("{0}\n{1}\n{0}".format("-" * len(m), m))
+
+#problem 1
+import numpy as np
+import torch
+import time
+
+def measure_time(func, *args, iterations=10, **kwargs):
+    start = time.time()
+    for _ in range(iterations):
+        func(*args, **kwargs)
+    end = time.time()
+    return (end - start) / iterations
+
+def matrix_multiplication_loops(A, B):
+    result = np.zeros((A.shape[0], B.shape[1]))
+    for i in range(A.shape[0]):
+        for j in range(B.shape[1]):
+            for k in range(A.shape[1]):
+                result[i, j] += A[i, k] * B[k, j]
+    return result
+
+def matrix_multiplication_einsum(A, B):
+    return np.einsum('ik,kj->ij', A, B)
+
+def compare_speeds():
+    matrix_shapes = [(100, 100), (200, 200), (500, 500)]
+    devices = ['cpu']
+    if torch.cuda.is_available():
+        devices.append('cuda')
+
+    for shape in matrix_shapes:
+        print(f"\nMatrix shape: {shape}")
+        A = np.random.rand(*shape).astype(np.float32)
+        B = np.random.rand(*shape).astype(np.float32)
+
+        # Python loops
+        time_loops = measure_time(matrix_multiplication_loops, A, B, iterations=1)
+        print(f"Python loops: {time_loops:.6f} seconds")
+
+        # NumPy einsum
+        time_einsum = measure_time(matrix_multiplication_einsum, A, B)
+        print(f"NumPy einsum: {time_einsum:.6f} seconds")
+
+        # NumPy dot (CPU)
+        time_numpy = measure_time(np.dot, A, B)
+        print(f"NumPy dot: {time_numpy:.6f} seconds")
+
+        # PyTorch (CPU and GPU)
+        for device in devices:
+            A_torch = torch.tensor(A, device=device)
+            B_torch = torch.tensor(B, device=device)
+
+            # PyTorch
+            time_torch = measure_time(torch.matmul, A_torch, B_torch)
+            print(f"PyTorch ({device}): {time_torch:.6f} seconds")
+
+def matrix_transposition_variants():
+    size = 500
+    A = np.random.rand(size, size).astype(np.float32)
+    B = np.random.rand(size, size).astype(np.float32)
+
+    A_torch = torch.tensor(A)
+    B_torch = torch.tensor(B)
+    if torch.cuda.is_available():
+        A_torch_gpu = A_torch.to('cuda')
+        B_torch_gpu = B_torch.to('cuda')
+
+    variants = {
+        "AB": (A_torch, B_torch),
+        "A^T B": (A_torch.T, B_torch),
+        "A B^T": (A_torch, B_torch.T),
+        "A^T B^T": (A_torch.T, B_torch.T),
+    }
+
+    print("\nMatrix multiplication variants:")
+    for name, (a, b) in variants.items():
+        time_cpu = measure_time(torch.matmul, a, b)
+        print(f"{name} (CPU): {time_cpu:.6f} seconds")
+
+        if torch.cuda.is_available():
+            time_gpu = measure_time(torch.matmul, a.to('cuda'), b.to('cuda'))
+            print(f"{name} (GPU): {time_gpu:.6f} seconds")
+
+if __name__ == "__main__":
+    print("Comparing speeds of different matrix multiplication methods...")
+    compare_speeds()
+
+    print("\nComparing matrix multiplication variants...")
+    matrix_transposition_variants()
+
+    # problem 3
+    !pip
+    install
+    tensorflow
+
+    import tensorflow as tf
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import Dense, Flatten
+    from tensorflow.keras.optimizers import SGD
+    from tensorflow.keras.callbacks import LearningRateScheduler
+    from tensorflow.keras.datasets import mnist
+    from tensorflow.keras.utils import to_categorical
+
+    (x_train, y_train), (x_test, y_test) = mnist.load_data()
+    x_train, x_test = x_train / 255.0, x_test / 255.0
+
+    y_train = to_categorical(y_train, 10)
+    y_test = to_categorical(y_test, 10)
+
+    num_layers = 3
+    neurons_per_layer = [256, 128, 64]
+    initial_lr = 0.05
+    momentum = 0.9
+
+
+    def lr_schedule(epoch):
+        if epoch < 10:
+            return initial_lr
+        elif epoch < 20:
+            return initial_lr / 2
+        else:
+            return initial_lr / 10
+
+
+    model = Sequential([
+        Flatten(input_shape=(28, 28))
+    ])
+
+    for neurons in neurons_per_layer:
+        model.add(Dense(neurons, activation='relu', kernel_initializer='he_normal'))
+
+    model.add(Dense(10, activation='softmax'))
+
+    optimizer = SGD(learning_rate=initial_lr, momentum=momentum)
+    model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
+    lr_callback = LearningRateScheduler(lr_schedule)
+
+    history = model.fit(
+        x_train, y_train,
+        validation_split=0.1,
+        epochs=10,
+        batch_size=128,
+        callbacks=[lr_callback],
+        verbose=1
+    )
