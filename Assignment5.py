@@ -655,3 +655,385 @@ model = CNNWithBatchNorm(dropout_prob=0.5).to(device)
 for epoch in range(1, 11):
     train(model, device, train_loader, optimizer, epoch)
     accuracy = test(model, device, test_loader)
+
+import torch
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+from torch import nn, optim
+import torch.nn.functional as F
+import torchvision.transforms as T
+
+transform_train = transforms.Compose([
+    transforms.RandomRotation(10),
+    transforms.RandomAffine(degrees=10, translate=(0.1, 0.1)),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize((0.1307,), (0.3081,))
+])
+
+transform_test = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.1307,), (0.3081,))
+])
+
+train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
+test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
+
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=1000, shuffle=False)
+
+class CNNWithBatchNorm(nn.Module):
+    def __init__(self, dropout_prob=0.5):
+        super(CNNWithBatchNorm, self).__init__()
+
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3)
+        self.bn2 = nn.BatchNorm2d(64)
+
+        self.fc1 = nn.Linear(64 * 5 * 5, 128)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.fc2 = nn.Linear(128, 10)
+
+        self.dropout = nn.Dropout(dropout_prob)
+
+    def forward(self, x):
+        x = F.relu(self.bn1(F.max_pool2d(self.conv1(x), 2)))
+        x = F.relu(self.bn2(F.max_pool2d(self.conv2(x), 2)))
+        x = x.view(-1, 64 * 5 * 5)
+        x = F.relu(self.bn3(self.fc1(x)))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return F.log_softmax(x, dim=1)
+
+def clip_grad_norms(model, max_norm=2.0):
+    for param in model.parameters():
+        if param.requires_grad:
+            norm = param.grad.data.norm(2)
+            norm_value = norm.item()
+            if norm_value > max_norm:
+                param.grad.data.mul_(max_norm / norm_value)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+model = CNNWithBatchNorm(dropout_prob=0.5).to(device)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+def train(model, device, train_loader, optimizer, epoch, norm_threshold=2.0):
+    model.train()
+    for batch_idx, (data, target) in enumerate(train_loader):
+        data, target = data.to(device), target.to(device)
+        optimizer.zero_grad()
+        output = model(data)
+        loss = F.nll_loss(output, target)
+        loss.backward()
+
+        clip_grad_norms(model, max_norm=norm_threshold)
+
+        optimizer.step()
+
+        if batch_idx % 100 == 0:
+            print(f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} '
+                  f'({100. * batch_idx / len(train_loader):.0f}%)]\tLoss: {loss.item():.6f}')
+
+for epoch in range(1, 11):
+    train(model, device, train_loader, optimizer, epoch, norm_threshold=2.0)
+    accuracy = test(model, device, test_loader)
+
+import torch
+from torch import nn, optim
+import torch.nn.functional as F
+
+class CNNWithBatchNorm(nn.Module):
+    def __init__(self, dropout_prob=0.5):
+        super(CNNWithBatchNorm, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.fc1 = nn.Linear(64 * 5 * 5, 128)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.fc2 = nn.Linear(128, 10)
+        self.dropout = nn.Dropout(dropout_prob)
+
+    def forward(self, x):
+        x = F.relu(self.bn1(F.max_pool2d(self.conv1(x), 2)))
+        x = F.relu(self.bn2(F.max_pool2d(self.conv2(x), 2)))
+        x = x.view(-1, 64 * 5 * 5)
+        x = F.relu(self.bn3(self.fc1(x)))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return F.log_softmax(x, dim=1)
+
+    def apply_polyak_averaging(self, model, alpha_p=0.99):
+        with torch.no_grad():
+            for param, avg_param in zip(model.parameters(), self.avg_params):
+                avg_param.mul_(alpha_p)
+                avg_param.add_((1 - alpha_p) * param)
+
+    def init_polyak_averaging(self):
+        self.avg_params = [torch.zeros_like(param) for param in self.parameters()]
+
+def train(model, device, train_loader, optimizer, epoch, alpha_p=0.99):
+    model.train()
+    for batch_idx, (data, target) in enumerate(train_loader):
+        data, target = data.to(device), target.to(device)
+        optimizer.zero_grad()
+        output = model(data)
+        loss = F.nll_loss(output, target)
+        loss.backward()
+        optimizer.step()
+
+        model.apply_polyak_averaging(model, alpha_p)
+
+        if batch_idx % 100 == 0:
+            print(f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} '
+                  f'({100. * batch_idx / len(train_loader):.0f}%)]\tLoss: {loss.item():.6f}')
+
+def test_with_polyak_averaging(model, device, test_loader):
+    model.eval()
+    test_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+
+            for param, avg_param in zip(model.parameters(), model.avg_params):
+                param.data.copy_(avg_param)
+
+            output = model(data)
+            test_loss += F.nll_loss(output, target, reduction='sum').item()
+            pred = output.argmax(dim=1, keepdim=True)
+            correct += pred.eq(target.view_as(pred)).sum().item()
+
+    test_loss /= len(test_loader.dataset)
+    accuracy = 100. * correct / len(test_loader.dataset)
+    print(f'\nTest set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(test_loader.dataset)} '
+          f'({accuracy:.0f}%)\n')
+
+model = CNNWithBatchNorm(dropout_prob=0.5).to(device)
+model.init_polyak_averaging()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+for epoch in range(1, 11):
+    train(model, device, train_loader, optimizer, epoch, alpha_p=0.99)
+    test_with_polyak_averaging(model, device, test_loader)
+import random
+import torch
+from torch import nn, optim
+from torch.utils.data import DataLoader
+import torch.nn.functional as F
+from torchvision import datasets, transforms
+
+transform_train = transforms.Compose([
+    transforms.RandomRotation(10),
+    transforms.RandomAffine(degrees=10, translate=(0.1, 0.1)),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize((0.1307,), (0.3081,))
+])
+
+transform_test = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.1307,), (0.3081,))
+])
+
+train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
+test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
+
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=1000, shuffle=False)
+
+class CNNWithBatchNorm(nn.Module):
+    def __init__(self, dropout_prob=0.5, hidden_units=128, lr=0.001):
+        super(CNNWithBatchNorm, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.fc1 = nn.Linear(64 * 5 * 5, hidden_units)
+        self.bn3 = nn.BatchNorm1d(hidden_units)
+        self.fc2 = nn.Linear(hidden_units, 10)
+        self.dropout = nn.Dropout(dropout_prob)
+        self.lr = lr
+
+    def forward(self, x):
+        x = F.relu(self.bn1(F.max_pool2d(self.conv1(x), 2)))
+        x = F.relu(self.bn2(F.max_pool2d(self.conv2(x), 2)))
+        x = x.view(-1, 64 * 5 * 5)
+        x = F.relu(self.bn3(self.fc1(x)))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return F.log_softmax(x, dim=1)
+
+    def train_model(self, device, train_loader, test_loader, epochs=50):
+        optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        best_accuracy = 0
+
+        for epoch in range(epochs):
+            self.train()
+            for data, target in train_loader:
+                data, target = data.to(device), target.to(device)
+                optimizer.zero_grad()
+                output = self(data)
+                loss = F.nll_loss(output, target)
+                loss.backward()
+                optimizer.step()
+
+            accuracy = self.test_model(device, test_loader)
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+            print(f'Epoch {epoch+1}/{epochs}, Accuracy: {accuracy}%')
+
+        return best_accuracy
+
+    def test_model(self, device, test_loader):
+        self.eval()
+        correct = 0
+        with torch.no_grad():
+            for data, target in test_loader:
+                data, target = data.to(device), target.to(device)
+                output = self(data)
+                pred = output.argmax(dim=1, keepdim=True)
+                correct += pred.eq(target.view_as(pred)).sum().item()
+        accuracy = 100. * correct / len(test_loader.dataset)
+        return accuracy
+
+def random_search(num_trials=10):
+    best_accuracy = 0
+    best_params = None
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    for trial in range(num_trials):
+        lr = random.uniform(1e-6, 1e-2)
+        dropout_prob = random.uniform(0.0, 0.5)
+        hidden_units = random.randint(64, 512)
+        epochs = 50
+
+        print(f"Trial {trial + 1}: lr={lr}, dropout={dropout_prob}, hidden_units={hidden_units}, epochs={epochs}")
+
+        model = CNNWithBatchNorm(dropout_prob=dropout_prob, hidden_units=hidden_units, lr=lr).to(device)
+        accuracy = model.train_model(device, train_loader, test_loader, epochs=epochs)
+
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            best_params = {'lr': lr, 'dropout_prob': dropout_prob, 'hidden_units': hidden_units, 'epochs': epochs}
+
+    return best_params, best_accuracy
+
+best_params, best_accuracy = random_search(num_trials=10)
+print(f"\nBest Hyperparameters: {best_params}")
+print(f"Best Accuracy: {best_accuracy}%")
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+import torch.nn.utils.prune as prune
+
+transform_train = transforms.Compose([
+    transforms.RandomRotation(10),
+    transforms.RandomAffine(degrees=10, translate=(0.1, 0.1)),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize((0.1307,), (0.3081,))
+])
+
+transform_test = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.1307,), (0.3081,))
+])
+
+train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
+test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
+
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=1000, shuffle=False)
+
+class CNNWithBatchNorm(nn.Module):
+    def __init__(self, dropout_prob=0.5):
+        super(CNNWithBatchNorm, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.fc1 = nn.Linear(64 * 5 * 5, 128)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.fc2 = nn.Linear(128, 10)
+        self.dropout = nn.Dropout(dropout_prob)
+
+    def forward(self, x):
+        x = F.relu(self.bn1(F.max_pool2d(self.conv1(x), 2)))
+        x = F.relu(self.bn2(F.max_pool2d(self.conv2(x), 2)))
+        x = x.view(-1, 64 * 5 * 5)
+        x = F.relu(self.bn3(self.fc1(x)))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return F.log_softmax(x, dim=1)
+
+    def train_model(self, device, train_loader, test_loader, optimizer, epochs=50):
+        best_accuracy = 0
+        for epoch in range(epochs):
+            self.train()
+            for data, target in train_loader:
+                data, target = data.to(device), target.to(device)
+                optimizer.zero_grad()
+                output = self(data)
+                loss = F.nll_loss(output, target)
+                loss.backward()
+                optimizer.step()
+
+            accuracy = self.test_model(device, test_loader)
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+            print(f'Epoch {epoch+1}/{epochs}, Accuracy: {accuracy}%')
+
+        return best_accuracy
+
+    def test_model(self, device, test_loader):
+        self.eval()
+        correct = 0
+        with torch.no_grad():
+            for data, target in test_loader:
+                data, target = data.to(device), target.to(device)
+                output = self(data)
+                pred = output.argmax(dim=1, keepdim=True)
+                correct += pred.eq(target.view_as(pred)).sum().item()
+        accuracy = 100. * correct / len(test_loader.dataset)
+        return accuracy
+
+def prune_weights(model, amount=0.5):
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+            prune.l1_unstructured(module, name="weight", amount=amount)
+
+def train_with_pruning(model, device, train_loader, test_loader, optimizer, epochs=50, prune_amount=0.5, prune_epochs=5):
+    for epoch in range(epochs):
+        if epoch % prune_epochs == 0:
+            prune_weights(model, amount=prune_amount)
+            print(f"Pruning applied at epoch {epoch+1}")
+
+        model.train()
+        for data, target in train_loader:
+            data, target = data.to(device), target.to(device)
+            optimizer.zero_grad()
+            output = model(data)
+            loss = F.nll_loss(output, target)
+            loss.backward()
+            optimizer.step()
+
+        accuracy = model.test_model(device, test_loader)
+        print(f'Epoch {epoch+1}/{epochs}, Accuracy: {accuracy}%')
+
+    return model
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = CNNWithBatchNorm(dropout_prob=0.5).to(device)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+model = train_with_pruning(model, device, train_loader, test_loader, optimizer, epochs=50, prune_amount=0.5, prune_epochs=5)
+
+accuracy = model.test_model(device, test_loader)
+print(f"Test accuracy after pruning: {accuracy}%")
