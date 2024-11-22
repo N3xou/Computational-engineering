@@ -1037,3 +1037,84 @@ model = train_with_pruning(model, device, train_loader, test_loader, optimizer, 
 
 accuracy = model.test_model(device, test_loader)
 print(f"Test accuracy after pruning: {accuracy}%")
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+import numpy as np
+
+
+train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform_train)
+test_dataset = datasets.MNIST(root='./data', train=False, download=True, transform=transform_test)
+
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=1000, shuffle=False)
+
+class ELM(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, activation_function='relu'):
+        super(ELM, self).__init__()
+        self.hidden_size = hidden_size
+        self.activation_function = activation_function
+
+        self.W = torch.randn(input_size, hidden_size) * np.sqrt(2. / input_size)
+        self.b = torch.randn(hidden_size)
+
+        self.W_out = None
+
+    def forward(self, x):
+        z = torch.matmul(x, self.W) + self.b
+        if self.activation_function == 'relu':
+            z = torch.relu(z)
+        elif self.activation_function == 'sigmoid':
+            z = torch.sigmoid(z)
+        return z
+
+    def fit(self, train_loader):
+        all_activations = []
+        all_labels = []
+
+        self.eval()
+        for data, target in train_loader:
+            activations = self.forward(data.view(data.size(0), -1))
+            all_activations.append(activations.detach().numpy())
+            all_labels.append(target.numpy())
+
+        all_activations = np.concatenate(all_activations, axis=0)
+        all_labels = np.concatenate(all_labels, axis=0)
+
+        all_labels_one_hot = np.zeros((all_labels.size, 10))
+        all_labels_one_hot[np.arange(all_labels.size), all_labels] = 1
+
+        H = np.hstack([all_activations, np.ones((all_activations.shape[0], 1))])
+        H_T_H_inv = np.linalg.pinv(H.T @ H)
+        self.W_out = H_T_H_inv @ H.T @ all_labels_one_hot
+
+    def predict(self, test_loader):
+        all_preds = []
+        self.eval()
+        for data, _ in test_loader:
+            activations = self.forward(data.view(data.size(0), -1))
+            H = torch.cat([activations, torch.ones((activations.size(0), 1)).to(data.device)], dim=1)
+            output = torch.softmax(H @ torch.Tensor(self.W_out).to(data.device), dim=1)
+            all_preds.append(output.argmax(dim=1))
+        return torch.cat(all_preds, dim=0)
+
+    def test(self, test_loader):
+        predictions = self.predict(test_loader)
+        correct = (predictions == torch.cat([target for _, target in test_loader])).sum().item()
+        total = len(test_loader.dataset)
+        accuracy = 100 * correct / total
+        print(f"Test Accuracy: {accuracy}%")
+        return accuracy
+
+input_size = 28 * 28
+hidden_size = 2048
+output_size = 10
+
+model = ELM(input_size, hidden_size, output_size, activation_function='relu')
+
+model.fit(train_loader)
+
+model.test(test_loader)
