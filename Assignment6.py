@@ -264,3 +264,40 @@ vgg = VGG("vgg19")
 
 if CUDA:
     vgg.cuda()
+
+    # List layers in the model
+    print("Feature layers")
+    print("--------------")
+    for name, layer in zip(vgg.feature_names, vgg.features):
+        print("{1: <12} {0: <8}  ({2}".format(name, *str(layer).split("(", 1)))
+    print("\nClassifier layers")
+    print("-----------------")
+    for layer in vgg.classifier:
+        print("{: <12}({}".format(*str(layer).split("(", 1)))
+
+ilsvrc = ILSVRC2014Sample(40)
+vgg.eval()
+
+figsize(16, 10)
+for i in range(10):
+    img = ilsvrc.data[30 + i]
+    label = ilsvrc.labels[30 + i]
+
+    img_torch = to_tensor(img)
+    predicted_label_id = to_np(vgg.predict(img_torch))[0]
+    predicted_label = ilsvrc.id_to_label[predicted_label_id]
+
+    desc = ilsvrc.label_to_desc[label].split(",")
+    if label == predicted_label:
+        desc.append("Classified correctly :)")
+    else:
+        desc.append("Misclassified as:")
+        desc.extend(ilsvrc.label_to_desc[predicted_label].split(","))
+
+    ax = subplot(2, 5, 1 + i)
+    ax.set_xlabel("\n".join(desc))  # , {'verticalalignment': 'bottom'})
+    ax.set_xticklabels([], visible=False)
+    ax.set_yticklabels([], visible=False)
+    ax.tick_params(axis="both", which="both", bottom="off", left="off", top="off")
+    ax.grid(False)
+    imshow(img)
