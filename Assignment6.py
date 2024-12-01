@@ -424,3 +424,116 @@ for batch_img in obscured_imgs(img, boxsize, bsz, stride):
 for k in maps:
     maps[k] = np.concatenate(maps[k])
     maps[k] = maps[k].reshape(int(np.sqrt(len(maps[k]))), -1)
+
+# Rysowanie wykresów
+figure(figsize=(16, 10))
+
+# Oryginalny obraz
+subplot(2, 2, 1)
+imshow(img)
+grid(False)
+title("Original Image")
+
+# Mapa aktywacji
+subplot(2, 2, 2)
+imshow(maps["heat"], cmap="viridis")
+grid(False)
+colorbar()
+title("Magnitude of activations in a selected layer\nAs a function of the obscuring square location")
+
+# Mapa prawdopodobieństwa dla poprawnej klasy
+subplot(2, 2, 3)
+imshow(maps["prob"], cmap="viridis")
+grid(False)
+colorbar()
+title("Probability of the correct class as a function\nof the obscuring square location.")
+
+# Mapa predykcji sieci
+subplot(2, 2, 4)
+discrete = np.zeros_like(maps["pred"], dtype=np.int64)
+values = np.unique(maps["pred"]).astype(np.int64)
+for i, v in enumerate(values):
+    discrete[np.where(maps["pred"] == v)] = i
+num_values = max(values.shape[0], 1)
+imshow(discrete, cmap=discrete_cmap(num_values, "cubehelix"))
+grid(False)
+cb = colorbar(
+    ticks=np.linspace(0.5, num_values - 0.5, num_values)  # Automatycznie dostosowane ticki
+)
+cb.set_ticklabels([ilsvrc.id_to_desc[v] for v in values])
+title("The most probable class as a function\nof the obscuring square location")
+
+# Wybór obrazu i wstępne ustawienia
+idx = 16
+img = ilsvrc.data[idx][None, ...]  # Dodajemy wymiar batch na początku
+label = ilsvrc.labels[idx]
+
+predicted_id = to_np(vgg.predict(to_tensor(img)))[0]
+
+print(
+    "Predicted: %s (correct: %s)"
+    % (ilsvrc.id_to_desc[predicted_id], ilsvrc.label_to_desc[label])
+)
+
+num_integration_points = 300
+batch_size = 20
+
+assert (num_integration_points % batch_size) == 0
+
+# Generowanie wag interpolacji
+weights = np.linspace(0.0, 1.0, num_integration_points).astype("float32")[:, None, None, None]
+grads = []
+
+for i in range(0, num_integration_points, batch_size):
+    # Tworzenie batch interpolacji pomiędzy szarym obrazem a obrazem docelowym
+    batch = weights[i : i + batch_size] * img + (1.0 - weights[i : i + batch_size]) * (np.zeros_like(img) + 0.5)
+
+    # Konwersja batch do tensora z wymogiem gradientu
+    batch = to_tensor(batch, requires_grad=True)
+
+    # Obliczenie prawdopodobieństwa dla poprawnej klasy
+    probs = vgg.probabilities(batch)[:, predicted_id]
+    prediction = torch.sum(probs)
+
+    # Propagacja wsteczna w kierunku wejścia
+    prediction.backward()
+    grads.append(to_np(batch.grad))
+
+# Konkatenujemy gradienty
+grads = np.concatenate(grads, axis=0)
+importance_scores = np.abs(grads).mean(axis=0)
+importance_scores = importance_scores.squeeze()  # (224, 224)
+
+# Wizualizacja wyników
+figsize(16, 10)
+
+# Wykres ważności pikseli
+subplot(1, 3, 1)
+imshow(importance_scores, cmap="viridis")
+colorbar(shrink=0.4)
+title("Computed importance of pixels")
+grid(False)
+
+# Obraz ważony przez ważność pikseli
+subplot(1, 3, 2)
+w = np.clip(importance_scores / np.max(np.abs(importance_scores)), 0, 1)  # Normalizacja do [0, 1]
+w = np.power(w, 0.7)  # Korekcja gamma
+
+# Zamiast stack, użyj w bezpośrednio, ponieważ ma już 3 kanały
+# w = np.stack([w] * 3, axis=-1)  # Upewnij się, że `w` ma wymiar (224, 224, 3)
+
+# Spłaszczenie `img` do wymiaru 3-kanałowego (RGB)
+img_rgb = img[0]  # Teraz (224, 224, 3) powinien mieć odpowiednie wymiary
+
+# Upewnij się, że `img_rgb` jest w zakresie [0, 1] lub [0, 255]
+weighted_img = np.clip(img_rgb * w, 0, 1)  # Ogranicz wartości do zakresu [0, 1] dla RGB
+
+plt.imshow(weighted_img)
+title("Image weighted by the importance")
+grid(False)
+
+# Oryginalny obraz
+subplot(1, 3, 3)
+plt.imshow(np.clip(img_rgb, 0, 1))  # Sprawdzenie zakresu [0, 1]
+title("Original image")
+grid(False)
