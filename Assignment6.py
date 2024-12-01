@@ -300,4 +300,55 @@ for i in range(10):
     ax.set_yticklabels([], visible=False)
     ax.tick_params(axis="both", which="both", bottom="off", left="off", top="off")
     ax.grid(False)
-    imshow(img)
+    imshow(img
+
+
+import numpy as np
+from PIL import Image
+import torchvision.transforms as transforms
+
+# List of image paths to classify
+images = [
+    '/content/im1.jpeg',
+    '/content/im2.jpg',
+    '/content/im3.jfif',
+    '/content/im4.jfif',
+    '/content/im5.PNG'
+]
+
+top_k = 5  # Number of top predictions to retrieve
+
+# Transformation: resize to 224x224 and convert to tensor
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor()
+])
+
+# Load the pre-trained VGG model and set it to evaluation mode
+vgg = VGG(model="vgg19")
+vgg.eval()
+if CUDA:
+    vgg.cuda()
+
+# Process each image and get the top-5 predictions
+for img_path in images:
+    # Load image and apply transformations
+    img = PIL.Image.open(img_path).convert("RGB")
+    img_tensor = transform(img).unsqueeze(0)  # Add batch dimension
+
+    if CUDA:
+        img_tensor = img_tensor.cuda()
+
+    # Get probabilities for each class
+    probs = vgg.probabilities(img_tensor)
+
+    # Get the top-5 predictions and their corresponding probabilities
+    top_probs, top_classes = torch.topk(probs, top_k)
+
+    print(f"Top-{top_k} predictions for {img_path}:")
+    for i in range(top_k):
+        class_id = top_classes[0][i].item()
+        prob = top_probs[0][i].item()
+        class_desc = ilsvrc.id_to_desc[class_id]
+        print(f"Class: {class_desc}, Probability: {prob:.4f}")
+    print("\n")
