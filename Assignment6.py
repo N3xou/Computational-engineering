@@ -352,3 +352,75 @@ for img_path in images:
         class_desc = ilsvrc.id_to_desc[class_id]
         print(f"Class: {class_desc}, Probability: {prob:.4f}")
     print("\n")
+
+def obscured_imgs(img, boxsize=8, bsz=64, stride=4):
+    h, w, _ = img.shape
+    for y in range(0, h - boxsize + 1, stride):
+        for x in range(0, w - boxsize + 1, stride):
+            img_copy = img.copy()
+            img_copy[y:y+boxsize, x:x+boxsize] = 0
+
+            yield img_copy
+
+# Show samples from an obscured batch
+obscured_batch = list(obscured_imgs(ilsvrc.data[27], boxsize=56, bsz=12, stride=28))
+
+# Sprawdzanie, czy batch zawiera wystarczającą liczbę obrazów
+if len(obscured_batch) < 12:
+    print("Warning: Less than expected number of images in the batch")
+
+# Wybierz pierwsze `bsz` obrazy, aby wypełnić batch
+batch = obscured_batch[:12]
+batch = np.stack(batch)  # Stosujemy np.stack zamiast np.vstack
+
+# Transpozycja dla funkcji plot_mat
+batch = batch.transpose(0, 3, 1, 2)
+
+# Wizualizacja obrazu
+common.plotting.plot_mat(batch)
+# Zaktualizowana funkcja discrete_cmap dla Matplotlib 3.7+
+def discrete_cmap(N, base_cmap=None):
+    """Create an N-bin discrete colormap from the specified input map"""
+    base = plt.colormaps.get_cmap(base_cmap)  # Zaktualizowana składnia
+    color_list = base(np.linspace(0, 1, N))
+    cmap_name = base.name + str(N)
+    return base.from_list(cmap_name, color_list, N)
+
+# Określenie indeksu obrazu i przypisanie etykiety
+idx = 32
+img = ilsvrc.data[idx]
+label = ilsvrc.labels[idx]
+
+# Parametry okna
+bsz = 64
+boxsize = 52
+stride = 14
+
+vgg.eval()
+
+# Inicjalizacja słowników do przechowywania wyników
+map_types = ["heat", "prob", "pred"]
+maps = {mt: [] for mt in map_types}
+
+for batch_img in obscured_imgs(img, boxsize, bsz, stride):
+    with torch.no_grad():
+        batch_tensor = to_tensor(batch_img).unsqueeze(0)
+        if CUDA:
+            batch_tensor = batch_tensor.cuda()
+
+        # Obliczanie aktywacji dla wybranej warstwy
+        heat = vgg.layer_activations(batch_tensor, "conv2_1")[:, 1].sum(dim=(1, 2))
+        maps["heat"].append(to_np(heat))
+
+        # Obliczanie prawdopodobieństwa dla poprawnej klasy
+        prob = vgg.probabilities(batch_tensor)[:, ilsvrc.label_to_id[label]]
+        maps["prob"].append(to_np(prob))
+
+        # Obliczanie predykcji sieci
+        pred = torch.argmax(vgg.probabilities(batch_tensor), dim=1)
+        maps["pred"].append(to_np(pred))
+
+# Połączenie wyników i zmiana rozmiaru
+for k in maps:
+    maps[k] = np.concatenate(maps[k])
+    maps[k] = maps[k].reshape(int(np.sqrt(len(maps[k]))), -1)
