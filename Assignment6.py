@@ -620,3 +620,14 @@ class StyleTransferNet(object):
         # TODO
         # Compute the Gram matrix, as defined in the docstring. Try to implement it as efficiently as possible.
         pass
+
+style_layers = ["0", "5", "10", "19", "28"]
+content_layers = ["21"]
+model = StyleTransferNet(
+    style_layers=style_layers,
+    content_layers=content_layers,
+    content_weight=10e0,  # Weight for content loss
+    style_weight=1e2      # Weight for style loss
+)
+if CUDA:
+    model.vgg.cuda()
