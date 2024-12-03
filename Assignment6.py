@@ -554,3 +554,69 @@ frida_kahlo.jpg    seated-nude.jpg	     the_scream.jpg
 
 imshow(load_image("images/starry_night.jpg"))
 grid(False)
+
+
+class StyleTransferNet(object):
+    def __init__(
+        self,
+        style_layers,
+        content_layers,
+        vgg_model="vgg19",
+        content_weight=5e0,
+        style_weight=1e2,
+    ):
+        self.style_layers = style_layers
+        self.style_captures = []
+        self.style_weight = style_weight
+        self.content_layers = content_layers
+        self.content_captures = []
+        self.content_weight = content_weight
+        self.vgg = VGG(vgg_model)
+        self.vgg.eval()
+        for p in self.vgg.parameters():
+            p.requires_grad = False
+        self.mse = nn.MSELoss()
+
+    def capture_content(self, x):
+        # TODO: implement saving naural activations for a chosen set of content layers
+        self.content_captures = TODO
+
+    def capture_style(self, x):
+        style_layers = self.vgg.multi_layer_activations(x, self.style_layers)
+        self.style_captures = [self._gram_mat(l).detach() for l in style_layers]
+
+    def get_loss(self, x):
+        needed_layers = self.content_layers + self.style_layers
+        needed_values = self.vgg.multi_layer_activations(x, needed_layers)
+        content_values = needed_values[: len(self.content_layers)]
+        style_values = needed_values[len(self.content_layers) :]
+
+        self.content_losses = []
+        self.style_losses = []
+
+        # TODO:
+        # append onto the lists  self.content_losses and self.style_losses
+        # the L2 (euclidean) distances between the captured statistics and the
+        # reconstructed image's ones. Remember about applying the gram matrix to style!
+        # You can use the self.mse to compute the L2 distance
+
+        loss = sum(self.content_losses) * self.content_weight
+        loss = loss + sum(self.style_losses) * self.style_weight
+
+        return loss
+
+    def _gram_mat(self, x):
+        """
+        Compute the matrix of feature correlations.
+
+        Input:
+            x: tensor of size batch_size x num_channels x width x heigth
+
+        Output:
+            tensor of size batch_size x num_chanels x num_channels given by the formula
+
+            out[b, c1, c2] = 1/width 1/heigth \sum_w=1^width \sum_h=1^heigth x[b, c1, w, h] * x[b, c2, w, h]
+        """
+        # TODO
+        # Compute the Gram matrix, as defined in the docstring. Try to implement it as efficiently as possible.
+        pass
