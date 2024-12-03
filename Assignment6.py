@@ -537,3 +537,20 @@ subplot(1, 3, 3)
 plt.imshow(np.clip(img_rgb, 0, 1))  # Sprawdzenie zakresu [0, 1]
 title("Original image")
 grid(False)
+
+
+![ -e images.tar.bz2 ] || gdown 'https://drive.google.com/uc?id=1qyaQnWVjhpT6L2bf9dRRVtmYdyN9f5pQ' -O images.tar.bz2
+![ -d images ] || tar jxf images.tar.bz2    !ls images    arab_text.jpg	   golden_gate.jpg	     shipwreck.jpg	      tubingen.jpg
+brad_pitt.jpg	   hoovertowernight.jpg      starry_night_crop.png    woman-with-hat-matisse.jpg
+crowd.jpg	   picasso_selfport1907.jpg  starry_night_google.jpg  wood.jpeg
+escher_sphere.jpg  pl_text.jpg		     starry_night.jpg
+frida_kahlo.jpg    seated-nude.jpg	     the_scream.jpg
+ def load_image(path, size=256):
+    img = PIL.Image.open(path)
+    img = img.convert("RGB")
+    img = torchvision.transforms.Resize(size)(img)
+    return numpy.asarray(img).astype("float32") / 255.0
+
+
+imshow(load_image("images/starry_night.jpg"))
+grid(False)
