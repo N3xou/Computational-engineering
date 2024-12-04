@@ -721,3 +721,12 @@ print("Capturing style")
 style_activations = model.capture_style(style_tensor)
 
 
+content_shape = (3, 224, 224)  # Example: RGB image of size 224x224
+image = np.random.randn(*content_shape).astype(np.float32) * 0.01 + 0.5
+image = to_tensor(image)  # Convert to a PyTorch tensor
+image = image.to(device)  # Move to the same device as the model
+image.requires_grad = True  # Enable gradient computation for optimization
+
+# Try using Adam or LBFGS optimizer
+# optimizer = torch.optim.Adam([image], lr=0.001)  # Uncomment to use Adam
+optimizer = torch.optim.LBFGS([image])
