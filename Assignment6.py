@@ -730,3 +730,87 @@ image.requires_grad = True  # Enable gradient computation for optimization
 # Try using Adam or LBFGS optimizer
 # optimizer = torch.optim.Adam([image], lr=0.001)  # Uncomment to use Adam
 optimizer = torch.optim.LBFGS([image])
+
+
+import numpy as np
+import torch
+from matplotlib import pyplot as plt
+from IPython import display
+
+# Define `to_np` function
+def to_np(tensor):
+    """
+    Convert PyTorch tensor to NumPy array compatible with Matplotlib.
+    """
+    if tensor.ndim == 4:  # Handle batched tensors (e.g., (B, C, H, W))
+        tensor = tensor[0]  # Remove batch dimension
+    tensor = tensor.permute(1, 2, 0).cpu().detach().numpy()  # Convert (C, H, W) to (H, W, C)
+    return tensor
+
+# Define variables (replace placeholders with actual data)
+content_image = np.random.rand(224, 224, 3)  # Example content image
+style_image = np.random.rand(224, 224, 3)    # Example style image
+image = torch.rand(1, 3, 224, 224).to("cuda")  # Initial image tensor on GPU (adjust size/device as needed)
+image.requires_grad = True
+
+# Placeholder model and optimizer
+class DummyModel:
+    def __call__(self, x):
+        return torch.tensor(0.0, requires_grad=True)  # Dummy loss
+
+    content_losses = [torch.tensor(0.0)]  # Dummy losses
+    style_losses = [torch.tensor(0.0)]   # Dummy losses
+    content_weight = 1.0
+    style_weight = 1.0
+
+model = DummyModel()
+optimizer = torch.optim.LBFGS([image])
+
+# Training loop parameters
+max_iters = 500
+check_every = 5
+
+try:
+    # Create the plot
+    fig = plt.figure(figsize=(16, 10))
+
+    # Display content and style images
+    fig.add_subplot(132).imshow(content_image)
+    plt.grid(False)
+    fig.add_subplot(133).imshow(style_image)
+    plt.grid(False)
+    ax = fig.add_subplot(131)
+    plt.tight_layout()
+
+    # Initialize the starting image visualization
+    imsh = ax.imshow(np.clip(to_np(image), 0.0, 1.0))
+    plt.grid(False)
+
+    # Main training loop
+    for iter_ in range(max_iters):
+        def closure():
+            optimizer.zero_grad()
+            loss = model(image)  # Compute the loss using the model
+            loss.backward()
+            return loss
+
+        # Perform optimization step
+        loss = optimizer.step(closure)
+        # Optional: Clamp image pixel values to valid range
+        image.data.clamp_(0, 1)
+
+        # Update and display progress
+        if iter_ % check_every == 0:
+            display.clear_output(wait=True)
+            imsh.set_data(np.clip(to_np(image), 0.0, 1.0))
+            display.display(fig)
+
+            print(f"Iteration {iter_: >6} | loss {loss.item(): >10.7f}")
+            for i, l in enumerate(model.content_losses):
+                print(f"  Content loss {i + 1}: {l.item() * model.content_weight: >8.4f}")
+            for i, l in enumerate(model.style_losses):
+                print(f"  Style loss {i + 1}: {l.item() * model.style_weight: >10.4f}")
+
+except KeyboardInterrupt:
+    display.clear_output(wait=True)
+    print(f"Training interrupted at iteration {iter_: >6}. Last loss: {loss.item(): >10.7f}")
