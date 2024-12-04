@@ -631,3 +631,93 @@ model = StyleTransferNet(
 )
 if CUDA:
     model.vgg.cuda()
+
+import torch
+import numpy as np
+from PIL import Image
+from torchvision.transforms.functional import resize
+
+# Funkcja konwertująca obraz na tensor
+def to_tensor(img):
+    """
+    Converts a NumPy array or PIL Image to a PyTorch tensor.
+    """
+    if isinstance(img, np.ndarray):
+        if img.ndim == 2:  # If the input is 2D, assume single channel
+            img = img[np.newaxis, :, :]  # Add channel dimension
+        return torch.tensor(img).permute(2, 0, 1).unsqueeze(0).float()
+    elif isinstance(img, Image.Image):
+        img = np.array(img)
+        if img.ndim == 2:  # Handle grayscale PIL images
+            img = img[np.newaxis, :, :]
+        return torch.tensor(img).permute(2, 0, 1).unsqueeze(0).float()
+# Funkcja ładująca obraz z pliku i dopasowująca wymiary
+def load_image(image_path, size):
+    img = Image.open(image_path)
+    img = img.convert("RGB")
+    img = resize(img, (size, size))  # Dopasowanie rozmiaru obrazu
+    return img
+
+# Ścieżki do obrazów stylu i treści
+style_img_path = "images/starry_night.jpg"
+content_img_path = "images/golden_gate.jpg"
+
+style_img_size = 256
+content_img_size = 256
+
+# Ładowanie i przetwarzanie obrazów
+style_image = load_image(style_img_path, style_img_size)
+content_image = load_image(content_img_path, content_img_size)
+
+# Konwersja obrazów na tensory i przeniesienie na urządzenie (GPU/CPU)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+style_tensor = to_tensor(style_image).to(device)
+content_tensor = to_tensor(content_image).to(device)
+
+# Debugowanie: Wyświetlanie rozmiarów tensorów
+print(f"Style Tensor Shape: {style_tensor.shape}, Device: {style_tensor.device}")
+print(f"Content Tensor Shape: {content_tensor.shape}, Device: {content_tensor.device}")
+
+# Funkcja przechwytująca zawartość
+class Model:
+    def __init__(self, device):
+        # Definiowanie warstw do przechwycenia (przykład)
+        self.device = device
+        self.content_layers = [torch.nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1).to(device)]  # Przenosimy warstwę na urządzenie
+        # Inne warstwy można dodać do tej listy
+
+    def capture_content(self, x):
+        """
+        Capture content features from the model.
+        """
+        print(f"Input Tensor Shape: {x.shape}")  # Debug: Wyświetlanie rozmiaru wejścia
+        content_activations = []
+
+        for layer in self.content_layers:
+            x = layer(x)  # Zastosowanie warstwy
+            content_activations.append(x)
+
+        # Debug: Wyświetlanie aktywacji
+        for idx, activation in enumerate(content_activations):
+            print(f"Content Layer {idx}: Type = {type(activation)}, Shape = {activation.shape}")
+
+        return content_activations
+
+    def capture_style(self, x):
+        """
+        Capture style features from the model.
+        """
+        # Logika dla stylu może być podobna do tego, co robimy dla zawartości
+        pass
+
+# Inicjalizacja modelu z odpowiednim urządzeniem
+model = Model(device)
+
+# Przechwytywanie zawartości i stylu
+print("Capturing content")
+content_activations = model.capture_content(content_tensor)
+
+print("Capturing style")
+style_activations = model.capture_style(style_tensor)
+
+
