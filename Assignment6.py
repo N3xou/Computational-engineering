@@ -814,3 +814,6 @@ try:
 except KeyboardInterrupt:
     display.clear_output(wait=True)
     print(f"Training interrupted at iteration {iter_: >6}. Last loss: {loss.item(): >10.7f}")
+
+plt.imshow(np.clip(to_np(image), 0.0, 1.0))
+grid(False)
